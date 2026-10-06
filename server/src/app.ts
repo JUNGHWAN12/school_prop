@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { cors } from 'hono/cors';
 import { issueToken, safeEqual, verifyToken } from './auth';
 import { num, type Env } from './env';
 import { ExtractionFailed, extractQuote } from './router';
@@ -9,6 +10,17 @@ const ALLOWED = new Set(['application/pdf', 'image/jpeg', 'image/png']);
 
 export function createApp(getEnv: (c: { env?: unknown }) => Env) {
   const app = new Hono<{ Bindings: Record<string, unknown> }>();
+  // 웹(GitHub Pages)과 API(Cloudflare Workers)가 다른 출처이므로 허용 출처만 CORS 허용
+  app.use('/api/*', (c, next) => {
+    const allowed = (getEnv(c).ALLOWED_ORIGIN ?? '').split(',').map((o) => o.trim()).filter(Boolean);
+    return cors({
+      origin: (origin) => (allowed.includes(origin) ? origin : null),
+      allowHeaders: ['Authorization', 'Content-Type'],
+      allowMethods: ['GET', 'POST', 'OPTIONS'],
+      maxAge: 600,
+    })(c, next);
+  });
+
   let loginLimiter: SlidingLimiter | undefined;
   let extractLimiter: SlidingLimiter | undefined;
   let daily: DailyCounter | undefined;

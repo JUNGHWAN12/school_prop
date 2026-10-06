@@ -1,5 +1,8 @@
 import type { QuoteExtraction } from '../types';
 
+/** 배포 시 Cloudflare Worker 주소(VITE_API_BASE). 로컬은 빈 값 → vite 프록시 */
+const API = ((import.meta.env.VITE_API_BASE as string | undefined) ?? '').replace(/\/$/, '');
+
 export class ApiError extends Error {
   constructor(message: string, readonly code: string, readonly manual = false, readonly status = 0) {
     super(message);
@@ -26,13 +29,13 @@ async function parse(res: Response) {
 }
 
 export async function login(code: string): Promise<string> {
-  const res = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }) });
+  const res = await fetch(`${API}/api/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }) });
   return ((await parse(res)) as { token: string }).token;
 }
 
 export async function extract(file: File, token: string): Promise<QuoteExtraction> {
   const fd = new FormData();
   fd.append('file', file);
-  const res = await fetch('/api/extract', { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd });
+  const res = await fetch(`${API}/api/extract`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd });
   return (await parse(res)) as QuoteExtraction;
 }

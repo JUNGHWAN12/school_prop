@@ -9,3 +9,5 @@ compatibility_date = "2025-01-01"
 [vars]
 PRIMARY_PROVIDER = "upstage"
 FALLBACK_PROVIDER = "gemini"
+# 웹이 배포된 GitHub Pages 출처(경로 제외). 본인 계정에 맞게 수정
+ALLOWED_ORIGIN = "https://junghwan12.github.io"

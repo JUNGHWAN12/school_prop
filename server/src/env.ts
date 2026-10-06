@@ -1,5 +1,7 @@
 export interface Env {
   ACCESS_CODE?: string;
+  /** 허용할 웹 출처(쉼표 구분). 예: https://junghwan12.github.io */
+  ALLOWED_ORIGIN?: string;
   UPSTAGE_API_KEY?: string;
   GEMINI_API_KEY?: string;
   PRIMARY_PROVIDER?: string;

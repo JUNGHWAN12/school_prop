@@ -161,5 +161,5 @@ cd web && npm i && npm run dev
 cd web && npm test ; cd ../server && npm test
 ```
 - API 키는 서버 환경변수로만 관리하며 클라이언트에 노출되지 않습니다. `.env`는 커밋 금지.
-- 배포: 서버는 `wrangler secret put ACCESS_CODE|UPSTAGE_API_KEY|GEMINI_API_KEY` 후 `npm run deploy`, 웹은 `npm run build`의 `dist/`를 정적 호스팅(Cloudflare Pages 등)하고 `/api`를 Worker로 라우팅.
+- 배포: 웹은 GitHub Pages, API는 Cloudflare Workers. 절차는 `docs/배포가이드.md` 참고(`.github/workflows/pages.yml`, `worker.yml`).
 - Upstage 엔드포인트·모델명(`UPSTAGE_PARSE_MODEL`, `UPSTAGE_SOLAR_MODEL`)과 Gemini 모델명(`GEMINI_MODEL`)은 환경변수로 교체 가능합니다. 실제 키로 호출 검증 전이므로 공식 문서와 대조가 필요합니다.

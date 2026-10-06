@@ -70,6 +70,20 @@ describe('extractQuote', () => {
   });
 });
 
+describe('CORS', () => {
+  const app = createApp(() => ({ ...env, ALLOWED_ORIGIN: 'https://junghwan12.github.io' }));
+  it('허용된 출처만 응답 헤더 부여', async () => {
+    const ok = await app.request('/api/health', { headers: { origin: 'https://junghwan12.github.io' } });
+    expect(ok.headers.get('access-control-allow-origin')).toBe('https://junghwan12.github.io');
+    const bad = await app.request('/api/health', { headers: { origin: 'https://evil.example' } });
+    expect(bad.headers.get('access-control-allow-origin')).toBeNull();
+  });
+  it('프리플라이트', async () => {
+    const r = await app.request('/api/extract', { method: 'OPTIONS', headers: { origin: 'https://junghwan12.github.io', 'access-control-request-method': 'POST', 'access-control-request-headers': 'authorization' } });
+    expect(r.headers.get('access-control-allow-headers')).toContain('Authorization');
+  });
+});
+
 describe('API', () => {
   const app = createApp(() => env);
   const login = async (code: string) => app.request('/api/login', { method: 'POST', body: JSON.stringify({ code }), headers: { 'content-type': 'application/json' } });
