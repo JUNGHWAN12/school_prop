@@ -41,6 +41,11 @@ describe('extractQuote', () => {
     const g = calls.find((c) => c.url.includes('generativelanguage'))!;
     expect(String(g.body)).not.toContain('301-1234');
   });
+  it('FALLBACK_PROVIDER=none 이면 폴백하지 않음', async () => {
+    mockFetch((u) => (u.includes('document-digitization') ? ocrRes() : new Response('', { status: 503 })));
+    await expect(extractQuote({ ...env, FALLBACK_PROVIDER: 'none' }, file())).rejects.toBeInstanceOf(ExtractionFailed);
+    expect(calls.some((c) => c.url.includes('generativelanguage'))).toBe(false);
+  });
   it('OCR 실패 시 외부 LLM 호출 없이 실패', async () => {
     mockFetch(() => new Response('', { status: 500 }));
     await expect(extractQuote(env, file())).rejects.toBeInstanceOf(ExtractionFailed);

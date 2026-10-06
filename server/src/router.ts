@@ -51,7 +51,8 @@ export async function extractQuote(env: Env, file: File): Promise<ExtractResult>
   const { text: masked, counts } = maskPersonalInfo(text);
 
   const primary = asName(env.PRIMARY_PROVIDER, 'upstage');
-  const fallback = asName(env.FALLBACK_PROVIDER, primary === 'upstage' ? 'gemini' : 'upstage');
+  // FALLBACK_PROVIDER=none 이면 폴백 없이 우선 프로바이더만 사용
+  const fallback = env.FALLBACK_PROVIDER === 'none' ? primary : asName(env.FALLBACK_PROVIDER, primary === 'upstage' ? 'gemini' : 'upstage');
   const order: LlmName[] = fallback === primary ? [primary] : [primary, fallback];
 
   const errors: string[] = [];
