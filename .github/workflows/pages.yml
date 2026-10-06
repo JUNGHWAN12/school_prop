@@ -31,6 +31,8 @@ jobs:
           VITE_BASE: /${{ github.event.repository.name }}/
           # 저장소 Settings > Secrets and variables > Actions > Variables 에 등록 (비밀값 아님)
           VITE_API_BASE: ${{ vars.API_BASE_URL }}
+          # Cloudflare Turnstile 사이트 키(공개값). 저장소 Variables에 TURNSTILE_SITE_KEY 로 등록
+          VITE_TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: web/dist

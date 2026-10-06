@@ -1,6 +1,6 @@
 /**
- * 인스턴스 메모리 기반 제한(베스트에포트). 서버리스에서는 인스턴스가 여러 개일 수 있으므로
- * 엄격한 일일 상한이 필요하면 Cloudflare KV/Durable Object로 교체한다.
+ * 인스턴스 메모리 기반의 분당 요청 제한(단기 폭주 방지용 베스트에포트).
+ * 일일 상한처럼 정확해야 하는 제한은 quota.ts(Durable Object)가 담당한다.
  */
 export class SlidingLimiter {
   private hits = new Map<string, number[]>();
@@ -11,19 +11,6 @@ export class SlidingLimiter {
     arr.push(now);
     this.hits.set(key, arr);
     if (this.hits.size > 5000) this.hits.clear();
-    return true;
-  }
-}
-
-export class DailyCounter {
-  private day = '';
-  private n = 0;
-  constructor(private max: number) {}
-  take(now = new Date()): boolean {
-    const d = now.toISOString().slice(0, 10);
-    if (d !== this.day) { this.day = d; this.n = 0; }
-    if (this.n >= this.max) return false;
-    this.n += 1;
     return true;
   }
 }
