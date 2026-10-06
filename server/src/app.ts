@@ -1,6 +1,5 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { issueToken, safeEqual, verifyToken } from './auth';
 import { num, type Env } from './env';
 import { ExtractionFailed, extractQuote } from './router';
 import { DailyCounter, SlidingLimiter } from './limits';
@@ -15,13 +14,12 @@ export function createApp(getEnv: (c: { env?: unknown }) => Env) {
     const allowed = (getEnv(c).ALLOWED_ORIGIN ?? '').split(',').map((o) => o.trim()).filter(Boolean);
     return cors({
       origin: (origin) => (allowed.includes(origin) ? origin : null),
-      allowHeaders: ['Authorization', 'Content-Type'],
+      allowHeaders: ['Content-Type'],
       allowMethods: ['GET', 'POST', 'OPTIONS'],
       maxAge: 600,
     })(c, next);
   });
 
-  let loginLimiter: SlidingLimiter | undefined;
   let extractLimiter: SlidingLimiter | undefined;
   let daily: DailyCounter | undefined;
 
@@ -30,22 +28,8 @@ export function createApp(getEnv: (c: { env?: unknown }) => Env) {
 
   app.get('/api/health', (c) => c.json({ ok: true }));
 
-  app.post('/api/login', async (c) => {
-    const env = getEnv(c);
-    if (!env.ACCESS_CODE) return c.json({ error: 'SERVER_NOT_CONFIGURED' }, 500);
-    loginLimiter ??= new SlidingLimiter(5, 60_000);
-    if (!loginLimiter.allow(ip(c))) return c.json({ error: 'TOO_MANY_ATTEMPTS' }, 429);
-    const body = (await c.req.json().catch(() => ({}))) as { code?: string };
-    if (!safeEqual(String(body.code ?? ''), env.ACCESS_CODE)) return c.json({ error: 'INVALID_CODE' }, 401);
-    return c.json({ token: await issueToken(env.ACCESS_CODE) });
-  });
-
   app.post('/api/extract', async (c) => {
     const env = getEnv(c);
-    if (!env.ACCESS_CODE) return c.json({ error: 'SERVER_NOT_CONFIGURED' }, 500);
-    const token = c.req.header('authorization')?.replace(/^Bearer\s+/i, '') ?? '';
-    if (!(await verifyToken(env.ACCESS_CODE, token))) return c.json({ error: 'UNAUTHORIZED' }, 401);
-
     extractLimiter ??= new SlidingLimiter(num(env.RATE_LIMIT_PER_MIN, 10), 60_000);
     if (!extractLimiter.allow(ip(c))) return c.json({ error: 'RATE_LIMITED' }, 429);
     daily ??= new DailyCounter(num(env.DAILY_CALL_LIMIT, 200));

@@ -1,10 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApp } from './app';
-import { issueToken, verifyToken } from './auth';
 import { ExtractionFailed, extractQuote, resetBreaker } from './router';
 import type { Env } from './env';
 
-const env: Env = { ACCESS_CODE: 'secret', UPSTAGE_API_KEY: 'u', GEMINI_API_KEY: 'g' };
+const env: Env = { UPSTAGE_API_KEY: 'u', GEMINI_API_KEY: 'g' };
 const file = () => new File(['x'], 'q.pdf', { type: 'application/pdf' });
 const ocrText = '견적서 담당 010-1234-5678 농협 301-1234-5678-91\n책 2 15300 30600';
 const good = { vat_mode: 'exempt', items: [{ item_name: '책', quantity: 2, unit_price: 15300, line_amount: 30600 }] };
@@ -22,16 +21,6 @@ const mockFetch = (handler: (url: string) => Response) =>
 
 beforeEach(() => { calls = []; resetBreaker(); });
 afterEach(() => vi.unstubAllGlobals());
-
-describe('auth', () => {
-  it('토큰 발급/검증/만료/위조', async () => {
-    const t = await issueToken('c', 1000, 0);
-    expect(await verifyToken('c', t, 500)).toBe(true);
-    expect(await verifyToken('c', t, 2000)).toBe(false);
-    expect(await verifyToken('other', t, 500)).toBe(false);
-    expect(await verifyToken('c', t.replace(/.$/, 'x'), 500)).toBe(false);
-  });
-});
 
 describe('extractQuote', () => {
   it('마스킹 후 Solar 호출, 개인정보가 LLM에 전달되지 않음', async () => {
@@ -79,39 +68,50 @@ describe('CORS', () => {
     expect(bad.headers.get('access-control-allow-origin')).toBeNull();
   });
   it('프리플라이트', async () => {
-    const r = await app.request('/api/extract', { method: 'OPTIONS', headers: { origin: 'https://junghwan12.github.io', 'access-control-request-method': 'POST', 'access-control-request-headers': 'authorization' } });
-    expect(r.headers.get('access-control-allow-headers')).toContain('Authorization');
+    const r = await app.request('/api/extract', { method: 'OPTIONS', headers: { origin: 'https://junghwan12.github.io', 'access-control-request-method': 'POST', 'access-control-request-headers': 'content-type' } });
+    expect(r.headers.get('access-control-allow-headers')).toContain('Content-Type');
   });
 });
 
 describe('API', () => {
   const app = createApp(() => env);
-  const login = async (code: string) => app.request('/api/login', { method: 'POST', body: JSON.stringify({ code }), headers: { 'content-type': 'application/json' } });
-  const upload = (token?: string, f: File = file()) => {
+  const upload = (f: File = file()) => {
     const fd = new FormData();
     fd.append('file', f);
-    return app.request('/api/extract', { method: 'POST', body: fd, headers: token ? { authorization: `Bearer ${token}` } : {} });
+    return app.request('/api/extract', { method: 'POST', body: fd });
   };
 
-  it('잘못된 코드 401, 올바른 코드 토큰', async () => {
-    expect((await login('nope')).status).toBe(401);
-    const r = await login('secret');
-    expect(r.status).toBe(200);
-    expect((await r.json() as { token: string }).token).toContain('.');
-  });
-  it('토큰 없으면 401', async () => expect((await upload()).status).toBe(401));
-  it('지원하지 않는 형식 415, 정상 처리 200', async () => {
-    const { token } = (await (await login('secret')).json()) as { token: string };
-    expect((await upload(token, new File(['x'], 'a.txt', { type: 'text/plain' }))).status).toBe(415);
+  it('로그인 없이 지원하지 않는 형식 415, 정상 처리 200', async () => {
+    expect((await upload(new File(['x'], 'a.txt', { type: 'text/plain' }))).status).toBe(415);
     mockFetch((u) => (u.includes('document-digitization') ? ocrRes() : solarRes()));
-    const r = await upload(token);
+    const r = await upload();
     expect(r.status).toBe(200);
     expect((await r.json() as { items: unknown[] }).items).toHaveLength(1);
   });
+  it('파일 없으면 400', async () => {
+    const r = await app.request('/api/extract', { method: 'POST', body: new FormData() });
+    expect(r.status).toBe(400);
+  });
+  it('분당 요청 수 제한', async () => {
+    const limited = createApp(() => ({ ...env, RATE_LIMIT_PER_MIN: '2' }));
+    mockFetch((u) => (u.includes('document-digitization') ? ocrRes() : solarRes()));
+    const send = () => { const fd = new FormData(); fd.append('file', file()); return limited.request('/api/extract', { method: 'POST', body: fd }); };
+    expect((await send()).status).toBe(200);
+    expect((await send()).status).toBe(200);
+    expect((await send()).status).toBe(429);
+  });
+  it('일일 상한 초과 시 수동 입력 안내', async () => {
+    const capped = createApp(() => ({ ...env, DAILY_CALL_LIMIT: '1' }));
+    mockFetch((u) => (u.includes('document-digitization') ? ocrRes() : solarRes()));
+    const send = () => { const fd = new FormData(); fd.append('file', file()); return capped.request('/api/extract', { method: 'POST', body: fd }); };
+    expect((await send()).status).toBe(200);
+    const r = await send();
+    expect(r.status).toBe(429);
+    expect(await r.json()).toMatchObject({ error: 'DAILY_LIMIT', manual: true });
+  });
   it('추출 실패는 manual 안내', async () => {
-    const { token } = (await (await login('secret')).json()) as { token: string };
     mockFetch(() => new Response('', { status: 500 }));
-    const r = await upload(token);
+    const r = await upload();
     expect(r.status).toBe(502);
     expect(await r.json()).toMatchObject({ manual: true });
   });

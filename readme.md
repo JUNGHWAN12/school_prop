@@ -152,8 +152,8 @@ K-에듀파인 업로드 규격에 맞춰 `내용`, `규격`, `단위`, `수량`
 구조: `web/`(React + Vite + TS), `server/`(Hono, Cloudflare Workers 배포 가능), `docs/samples/`(K-에듀파인 원본 서식). 상세 계획은 `개발계획서.md`.
 
 ```bash
-# 서버 (http://localhost:8787)
-cd server && npm i && cp .env.example .env   # ACCESS_CODE, UPSTAGE_API_KEY, GEMINI_API_KEY 입력
+# 서버 (http://localhost:8787)  ※ Windows PowerShell 5에서는 && 대신 한 줄씩 실행, cp 대신 copy
+cd server && npm i && cp .env.example .env   # UPSTAGE_API_KEY, GEMINI_API_KEY 입력
 npm run dev
 # 웹 (http://localhost:5173, /api 는 8787로 프록시)
 cd web && npm i && npm run dev
