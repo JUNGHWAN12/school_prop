@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { extract } from '../lib/api';
+import { ApiError, extract } from '../lib/api';
 import { defaultParams, type TemplateParams } from '../lib/templates';
 import type { Item, TemplateType } from '../types';
 
@@ -11,6 +11,7 @@ interface State {
   previewUrl: string | null;
   status: 'idle' | 'loading' | 'done' | 'error';
   error: string | null;
+  errorDetail: string | null;
   warnings: string[];
   meta: { provider?: string; fallbackUsed?: boolean; vendorName?: string } | null;
   items: Item[];
@@ -32,6 +33,7 @@ export const useStore = create<State>((set, get) => ({
   previewUrl: null,
   status: 'idle',
   error: null,
+  errorDetail: null,
   warnings: [],
   meta: null,
   items: [newItem()],
@@ -42,7 +44,7 @@ export const useStore = create<State>((set, get) => ({
   async analyze(file) {
     const prev = get().previewUrl;
     if (prev) URL.revokeObjectURL(prev);
-    set({ file, previewUrl: URL.createObjectURL(file), status: 'loading', error: null, warnings: [], meta: null });
+    set({ file, previewUrl: URL.createObjectURL(file), status: 'loading', error: null, errorDetail: null, warnings: [], meta: null });
     try {
       const r = await extract(file);
       set({
@@ -54,7 +56,7 @@ export const useStore = create<State>((set, get) => ({
         meta: { provider: r.provider, fallbackUsed: r.fallbackUsed, vendorName: r.vendorName },
       });
     } catch (e) {
-      set({ status: 'error', error: e instanceof Error ? e.message : '알 수 없는 오류' });
+      set({ status: 'error', error: e instanceof Error ? e.message : '알 수 없는 오류', errorDetail: e instanceof ApiError ? e.detail || null : null });
     }
   },
   setTemplate: (template) => set({ template, bodyOverride: null }),

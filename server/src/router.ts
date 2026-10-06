@@ -54,9 +54,9 @@ export async function extractQuote(env: Env, file: File): Promise<ExtractResult>
   const fallback = asName(env.FALLBACK_PROVIDER, primary === 'upstage' ? 'gemini' : 'upstage');
   const order: LlmName[] = fallback === primary ? [primary] : [primary, fallback];
 
-  let lastErr: unknown;
+  const errors: string[] = [];
   for (const [i, name] of order.entries()) {
-    if (isOpen(name)) { lastErr = new Error(`${name} 일시 우회 중`); continue; }
+    if (isOpen(name)) { errors.push(`${name}: 연속 실패로 일시 우회 중`); continue; }
     try {
       const raw = await LLMS[name](env, masked);
       recordOk(name);
@@ -64,10 +64,10 @@ export async function extractQuote(env: Env, file: File): Promise<ExtractResult>
       if (i > 0) normalized.warnings.unshift(`${primary} 처리에 실패해 ${name}으로 처리했습니다.`);
       return { ...normalized, provider: name, fallbackUsed: i > 0, maskedCounts: counts, timingsMs: { ocr: t1 - t0, llm: Date.now() - t1 } };
     } catch (e) {
-      lastErr = e;
+      errors.push(`${name}: ${e instanceof Error ? e.message : '알 수 없는 오류'}`);
       // 일시 장애(429/5xx/타임아웃/스키마 오류)만 서킷브레이커에 집계. 어떤 실패든 다음 프로바이더로 넘어간다.
       if (!(e instanceof ProviderError) || e.retryable) recordFail(name);
     }
   }
-  throw new ExtractionFailed(lastErr instanceof Error ? lastErr.message : 'AI 추출 실패', 'llm');
+  throw new ExtractionFailed(errors.join(' | ') || 'AI 추출 실패', 'llm');
 }

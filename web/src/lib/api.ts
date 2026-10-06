@@ -4,7 +4,7 @@ import type { QuoteExtraction } from '../types';
 const API = ((import.meta.env.VITE_API_BASE as string | undefined) ?? '').replace(/\/$/, '');
 
 export class ApiError extends Error {
-  constructor(message: string, readonly code: string, readonly manual = false, readonly status = 0) {
+  constructor(message: string, readonly code: string, readonly manual = false, readonly status = 0, readonly detail = '') {
     super(message);
   }
 }
@@ -19,9 +19,9 @@ const MESSAGES: Record<string, string> = {
 
 async function parse(res: Response) {
   if (res.ok) return res.json();
-  const j = (await res.json().catch(() => ({}))) as { error?: string; manual?: boolean };
+  const j = (await res.json().catch(() => ({}))) as { error?: string; manual?: boolean; stage?: string; detail?: string };
   const code = j.error ?? 'UNKNOWN';
-  throw new ApiError(MESSAGES[code] ?? `요청에 실패했습니다 (${res.status})`, code, !!j.manual, res.status);
+  throw new ApiError(MESSAGES[code] ?? `요청에 실패했습니다 (${res.status})`, code, !!j.manual, res.status, j.detail ? `[${j.stage ?? '?'}] ${j.detail}` : '');
 }
 
 export async function extract(file: File): Promise<QuoteExtraction> {
