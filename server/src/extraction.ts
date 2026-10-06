@@ -20,11 +20,14 @@ export interface RawExtraction {
   business_no?: string;
   quote_date?: string;
   vat_mode?: VatMode;
+  /** 견적서에 적힌 최종 합계금액(부가세 포함, 청구 총액) */
+  total_amount?: number;
   items: RawItem[];
 }
 
 export interface NormalizedItem { itemName: string; spec: string; unit: string; quantity: number; unitPrice: number }
 export interface Normalized {
+  statedTotal?: number;
   suggestedTemplate: TemplateType;
   vendorName?: string;
   businessNo?: string;
@@ -41,6 +44,7 @@ export const EXTRACTION_SCHEMA = {
     business_no: { type: 'string' },
     quote_date: { type: 'string' },
     vat_mode: { type: 'string', enum: ['included', 'excluded', 'exempt', 'unknown'] },
+    total_amount: { type: 'number' },
     items: {
       type: 'array',
       items: {
@@ -63,11 +67,13 @@ export const EXTRACTION_SCHEMA = {
 
 export const SYSTEM_PROMPT = `당신은 한국 학교 행정용 견적서 분석기입니다. 입력은 견적서 OCR 텍스트(개인정보는 이미 마스킹됨)입니다.
 견적서 양식은 업체마다 다릅니다. 다음 JSON만 출력하세요(설명·코드블록 금지).
-- items: 실제 구매 품목만(합계/공급가액 합계/세액 합계/배송비·할인 요약 행은 제외). 문서 순서 유지.
+- items: 견적 표의 모든 순번 행을 빠짐없이 포함하세요. 작업비·설치비·공임·배송비·운반비·인건비 같은 용역/비용 행도 수량과 금액이 있으면 품목입니다(단위가 비어 있어도 포함).
+  제외하는 것은 합계/소계/공급가액 합계/세액 합계 같은 집계 행뿐입니다. 문서 순서 유지.
   - item_name 품명, spec 규격(없으면 ""), unit 단위(없으면 도서는 "권", 그 외 "개"), quantity 수량(숫자),
     unit_price 견적서에 적힌 단가(숫자, 콤마 제거), line_amount 해당 품목 금액, line_tax 해당 품목 세액(없으면 0).
 - vat_mode: 단가가 부가세 포함이면 "included", 별도(공급가액 기준)이면 "excluded", 면세(도서 등)이면 "exempt", 불명확하면 "unknown".
 - suggested_template: 도서·소모품 구매=TEMPLATE_PURCHASE, 대회/연수/행사 참가비=TEMPLATE_EVENT, 식비·급량비·다과=TEMPLATE_MEAL.
+- total_amount: 견적서에 적힌 최종 합계금액(부가세 포함 청구 총액, 숫자). 없으면 생략.
 - vendor_name, business_no(사업자등록번호), quote_date(견적일자)는 보이는 대로. 없으면 생략.
 숫자는 읽은 값 그대로 쓰고 추측으로 만들지 마세요.`;
 
@@ -106,6 +112,14 @@ export function normalizeExtraction(raw: RawExtraction): Normalized {
       unitPrice,
     });
   }
+  const stated = Number(raw.total_amount);
+  if (items.length > 0 && Number.isFinite(stated) && stated > 0) {
+    const sum = items.reduce((a, i) => a + i.quantity * i.unitPrice, 0);
+    const tolerance = Math.max(10, Math.round(stated * 0.002)); // 단가별 반올림 오차 허용
+    if (Math.abs(sum - stated) > tolerance) {
+      warnings.unshift(`품목 합계(${Math.round(sum).toLocaleString('ko-KR')}원)가 견적서 합계금액(${stated.toLocaleString('ko-KR')}원)과 다릅니다. 누락·중복된 품목이 없는지 원본과 비교해 주세요.`);
+    }
+  }
   if (converted > 0) warnings.push(`견적서 단가가 부가세 별도라서 ${converted}개 품목의 단가를 VAT 포함(+10%)으로 환산했습니다. 합계를 견적서와 비교해 확인해 주세요.`);
   if (items.length === 0) warnings.push('품목을 찾지 못했습니다. 직접 입력해 주세요.');
 
@@ -115,6 +129,7 @@ export function normalizeExtraction(raw: RawExtraction): Normalized {
     businessNo: raw.business_no?.trim() || undefined,
     quoteDate: raw.quote_date?.trim() || undefined,
     items,
+    statedTotal: Number.isFinite(stated) && stated > 0 ? stated : undefined,
     warnings,
   };
 }

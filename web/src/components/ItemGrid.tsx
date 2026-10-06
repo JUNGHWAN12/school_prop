@@ -7,7 +7,7 @@ import { useStore } from '../store/useStore';
 const cell = 'w-full rounded border border-slate-300 px-2 py-1';
 
 export function ItemGrid() {
-  const { items, updateItem, addItem, removeItem } = useStore();
+  const { items, updateItem, addItem, removeItem, meta } = useStore();
   const issues = validateWorkbook(buildWorkbook(items));
   const total = totalAmount(items);
 
@@ -41,7 +41,14 @@ export function ItemGrid() {
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <button onClick={addItem} className="flex items-center gap-1 rounded border px-3 py-2 text-sm"><Plus size={16} /> 품목 추가</button>
-        <div className="text-sm">합계: <b>{amountToKoreanWon(total).replace('금', '금 ')}</b> ({formatWon(total)}원)</div>
+        <div className="text-right text-sm">
+          <div>합계: <b>{amountToKoreanWon(total).replace('금', '금 ')}</b> ({formatWon(total)}원)</div>
+          {meta?.statedTotal != null && (
+            <div className={Math.abs(total - meta.statedTotal) <= Math.max(10, meta.statedTotal * 0.002) ? 'text-emerald-700' : 'font-medium text-red-600'}>
+              견적서 합계 {formatWon(meta.statedTotal)}원 {Math.abs(total - meta.statedTotal) <= Math.max(10, meta.statedTotal * 0.002) ? '· 일치 확인' : `· 차이 ${formatWon(Math.abs(total - meta.statedTotal))}원, 품목 누락 확인`}
+            </div>
+          )}
+        </div>
       </div>
 
       {issues.length > 0 && (

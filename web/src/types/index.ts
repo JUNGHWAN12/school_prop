@@ -15,6 +15,8 @@ export interface QuoteExtraction {
   vendorName?: string;
   businessNo?: string;
   quoteDate?: string;
+  /** 견적서에 적힌 최종 합계금액(VAT 포함) */
+  statedTotal?: number;
   items: Omit<Item, 'id'>[];
   provider?: string;
   fallbackUsed?: boolean;
