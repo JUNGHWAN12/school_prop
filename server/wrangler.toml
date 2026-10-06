@@ -10,3 +10,5 @@ PRIMARY_PROVIDER = "upstage"
 FALLBACK_PROVIDER = "gemini"
 # 웹이 배포된 GitHub Pages 출처(경로 제외). 본인 계정에 맞게 수정
 ALLOWED_ORIGIN = "https://junghwan12.github.io"
+# 품목 추출 모델 (모델명이 틀리면 Gemini 폴백으로 처리되고 "폴백 사용" 안내가 표시됨)
+UPSTAGE_SOLAR_MODEL = "solar-pro4"
