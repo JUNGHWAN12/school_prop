@@ -16,6 +16,12 @@ export class ProviderError extends Error {
 
 const classify = (status: number) => status === 429 || status >= 500;
 
+/** 업스트림 오류 응답의 앞부분만 진단용으로 덧붙인다(견적서 내용은 포함되지 않음). */
+export async function failure(res: Response, label: string): Promise<ProviderError> {
+  const body = (await res.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 200);
+  return new ProviderError(`${label}(${res.status})${body ? `: ${body}` : ''}`, res.status, classify(res.status));
+}
+
 /** 1단계: 견적서 파일 → 텍스트(OCR/문서 파싱) */
 export async function upstageOcr(env: Env, file: File): Promise<string> {
   if (!env.UPSTAGE_API_KEY) throw new ProviderError('UPSTAGE_API_KEY 미설정', 500, false);
@@ -28,7 +34,7 @@ export async function upstageOcr(env: Env, file: File): Promise<string> {
     body: form,
     signal: AbortSignal.timeout(num(env.PROVIDER_TIMEOUT_MS, 20000)),
   });
-  if (!res.ok) throw new ProviderError(`Upstage 문서 파싱 실패(${res.status})`, res.status, classify(res.status));
+  if (!res.ok) throw await failure(res, 'Upstage 문서 파싱 실패');
   const j = (await res.json()) as {
     content?: { markdown?: string; text?: string; html?: string };
     text?: string;
@@ -57,7 +63,7 @@ export async function solarExtract(env: Env, maskedText: string): Promise<RawExt
     }),
     signal: AbortSignal.timeout(num(env.PROVIDER_TIMEOUT_MS, 20000)),
   });
-  if (!res.ok) throw new ProviderError(`Solar 호출 실패(${res.status})`, res.status, classify(res.status));
+  if (!res.ok) throw await failure(res, 'Solar 호출 실패');
   const j = (await res.json()) as { choices?: { message?: { content?: string } }[] };
   const content = j.choices?.[0]?.message?.content;
   if (!content) throw new ProviderError('Solar 응답이 비어 있습니다');

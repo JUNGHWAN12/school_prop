@@ -6,7 +6,7 @@ const MAX = 20 * 1024 * 1024;
 const OK = ['application/pdf', 'image/jpeg', 'image/png'];
 
 export function UploadPanel() {
-  const { analyze, status, error, warnings, meta, file, previewUrl } = useStore();
+  const { analyze, status, error, errorDetail, warnings, meta, file, previewUrl } = useStore();
   const input = useRef<HTMLInputElement>(null);
   const [drag, setDrag] = useState(false);
   const [localErr, setLocalErr] = useState('');
@@ -44,7 +44,12 @@ export function UploadPanel() {
 
       <p className="flex items-center gap-1 text-xs text-slate-500"><ShieldCheck size={14} /> 전화번호·주민등록번호·계좌번호는 AI 전송 전에 자동으로 마스킹됩니다.</p>
 
-      {(localErr || error) && <p role="alert" className="rounded bg-red-50 p-2 text-sm text-red-700">{localErr || error}</p>}
+      {(localErr || error) && (
+        <div role="alert" className="rounded bg-red-50 p-2 text-sm text-red-700">
+          <p>{localErr || error}</p>
+          {!localErr && errorDetail && <p className="mt-1 break-all text-xs text-red-500">오류 상세: {errorDetail}</p>}
+        </div>
+      )}
       {meta && (
         <p className="text-xs text-slate-500">
           {meta.vendorName && <>공급자: {meta.vendorName} · </>}처리: {meta.provider === 'gemini' ? 'Gemini' : 'Upstage Solar'}

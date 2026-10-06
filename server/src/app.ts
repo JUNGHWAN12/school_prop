@@ -48,9 +48,10 @@ export function createApp(getEnv: (c: { env?: unknown }) => Env) {
       return c.json(r);
     } catch (e) {
       const stage = e instanceof ExtractionFailed ? e.stage : 'llm';
-      console.log(JSON.stringify({ evt: 'extract_failed', stage }));
+      const detail = e instanceof Error ? e.message : '';
+      console.log(JSON.stringify({ evt: 'extract_failed', stage, detail }));
       // 마스킹을 거치지 못했으므로 외부 AI로 원본을 보내지 않고 수동 입력으로 안내
-      return c.json({ error: 'EXTRACTION_FAILED', stage, manual: true }, 502);
+      return c.json({ error: 'EXTRACTION_FAILED', stage, detail, manual: true }, 502);
     }
   });
 
