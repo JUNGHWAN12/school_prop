@@ -84,7 +84,6 @@ const TEMPLATES = new Set(['TEMPLATE_PURCHASE', 'TEMPLATE_EVENT', 'TEMPLATE_MEAL
 export function normalizeExtraction(raw: RawExtraction): Normalized {
   const warnings: string[] = [];
   const mode: VatMode = raw.vat_mode ?? 'unknown';
-  if (mode === 'unknown') warnings.push('부가세 포함 여부를 판단하지 못했습니다. 단가를 확인해 주세요.');
 
   const items: NormalizedItem[] = [];
   /** 견적서에 적힌 행별 청구 금액(공급가 열 등). 정가≠공급가인 견적서 처리에 사용 */
@@ -155,6 +154,12 @@ export function normalizeExtraction(raw: RawExtraction): Normalized {
     if (Math.abs(sum - stated) > tolerance) {
       warnings.unshift(`품목 합계(${Math.round(sum).toLocaleString('ko-KR')}원)가 견적서 합계금액(${stated.toLocaleString('ko-KR')}원)과 다릅니다. 누락·중복된 품목이 없는지 원본과 비교해 주세요.`);
     }
+  }
+  // 부가세 여부를 모르더라도 품목 합계가 견적서 합계금액과 일치하면 금액이 검증된 것이므로 경고하지 않는다
+  if (mode === 'unknown') {
+    const sum = items.reduce((a, i) => a + i.quantity * i.unitPrice, 0);
+    const verified = hasStated && Math.abs(sum - stated) <= Math.max(10, Math.round(stated * 0.002));
+    if (!verified) warnings.unshift('부가세 포함 여부를 판단하지 못했습니다. 단가를 확인해 주세요.');
   }
   if (converted > 0) warnings.push(`견적서 단가가 부가세 별도라서 ${converted}개 품목의 단가를 VAT 포함(+10%)으로 환산했습니다. 합계를 견적서와 비교해 확인해 주세요.`);
   if (items.length === 0) warnings.push('품목을 찾지 못했습니다. 직접 입력해 주세요.');
