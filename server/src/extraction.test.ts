@@ -35,6 +35,30 @@ describe('normalizeExtraction', () => {
   });
 });
 
+describe('견적서 합계 대조', () => {
+  const base = [
+    { item_name: 'HDMI 케이블 15M', quantity: 1, unit_price: 30000, line_amount: 30000 },
+    { item_name: 'HDMI 케이블 20M', quantity: 1, unit_price: 45000, line_amount: 45000 },
+  ];
+  it('품목이 누락되면 합계 불일치 경고를 맨 앞에', () => {
+    const n = normalizeExtraction({ vat_mode: 'included', total_amount: 130000, items: base });
+    expect(n.warnings[0]).toContain('75,000원');
+    expect(n.warnings[0]).toContain('130,000원');
+  });
+  it('작업비까지 포함하면 경고 없음', () => {
+    const n = normalizeExtraction({ vat_mode: 'included', total_amount: 130000, items: [...base, { item_name: '작업비', quantity: 1, unit_price: 55000, line_amount: 55000 }] });
+    expect(n.warnings).toEqual([]);
+    expect(n.statedTotal).toBe(130000);
+  });
+  it('VAT 별도 환산 후 반올림 오차는 허용', () => {
+    const n = normalizeExtraction({ vat_mode: 'excluded', total_amount: 1292940, items: [{ item_name: 'A', quantity: 25, unit_price: 37300 }, { item_name: 'B', quantity: 1, unit_price: 242000 }] });
+    expect(n.warnings.some((w) => w.includes('다릅니다'))).toBe(false);
+  });
+  it('합계가 없으면 대조하지 않음', () => {
+    expect(normalizeExtraction({ vat_mode: 'included', items: base }).warnings).toEqual([]);
+  });
+});
+
 describe('parse', () => {
   it('코드펜스 허용', () => expect(parseJsonLoose('```json\n{"items":[]}\n```')).toEqual({ items: [] }));
   it('스키마 위반', () => expect(() => assertRaw({ a: 1 })).toThrow());

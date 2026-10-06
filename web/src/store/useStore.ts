@@ -13,7 +13,7 @@ interface State {
   error: string | null;
   errorDetail: string | null;
   warnings: string[];
-  meta: { provider?: string; fallbackUsed?: boolean; vendorName?: string } | null;
+  meta: { provider?: string; fallbackUsed?: boolean; vendorName?: string; statedTotal?: number } | null;
   items: Item[];
   template: TemplateType;
   params: TemplateParams;
@@ -53,7 +53,7 @@ export const useStore = create<State>((set, get) => ({
         template: r.suggestedTemplate,
         bodyOverride: null,
         warnings: r.warnings ?? [],
-        meta: { provider: r.provider, fallbackUsed: r.fallbackUsed, vendorName: r.vendorName },
+        meta: { provider: r.provider, fallbackUsed: r.fallbackUsed, vendorName: r.vendorName, statedTotal: r.statedTotal },
       });
     } catch (e) {
       set({ status: 'error', error: e instanceof Error ? e.message : '알 수 없는 오류', errorDetail: e instanceof ApiError ? e.detail || null : null });
