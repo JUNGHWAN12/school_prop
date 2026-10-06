@@ -121,13 +121,14 @@ export function normalizeExtraction(raw: RawExtraction): Normalized {
   const stated = Number(raw.total_amount);
   const hasStated = Number.isFinite(stated) && stated > 0;
 
-  // 정가(단가 열)와 공급가(실제 청구액)가 다른 견적서(도서 할인 등): 합계금액과 맞는 쪽을 기준으로 단가를 정한다.
+  // 단가 열(정가)과 금액 열(공급가=실제 청구액)이 다른 견적서(도서 할인 등):
+  // 금액 열이 실제 청구액이므로 기본은 금액 기준. 합계금액을 알면 합계에 더 가까운 쪽을 채택한다.
   let useBilled = false;
-  if (mode !== 'excluded' && hasStated && items.length > 0) {
-    const tol = Math.max(10, Math.round(stated * 0.002));
+  if (mode !== 'excluded' && items.length > 0 && mismatches.length > 0) {
     const byPrice = items.reduce((a, i) => a + i.quantity * i.unitPrice, 0);
     const byBilled = items.reduce((a, i, k) => a + (billed[k] ?? i.quantity * i.unitPrice), 0);
-    if (Math.abs(byPrice - stated) > tol && Math.abs(byBilled - stated) <= tol) {
+    const billedWins = hasStated ? Math.abs(byBilled - stated) < Math.abs(byPrice - stated) : true;
+    if (billedWins) {
       let n = 0;
       items.forEach((it, k) => {
         const b = billed[k];
@@ -137,7 +138,13 @@ export function normalizeExtraction(raw: RawExtraction): Normalized {
         }
       });
       useBilled = n > 0;
-      if (useBilled) warnings.push(`견적서의 단가(정가)와 공급가(실제 청구액)가 달라, ${n}개 품목의 단가를 공급가 기준으로 맞췄습니다. 견적서 합계금액과 일치합니다.`);
+      if (useBilled) {
+        warnings.push(
+          hasStated
+            ? `견적서의 단가(정가)와 공급가(실제 청구액)가 달라, ${n}개 품목의 단가를 공급가 기준으로 맞췄습니다. 견적서 합계금액에 맞춘 결과입니다.`
+            : `견적서의 단가(정가)와 공급가(실제 청구액)가 달라, ${n}개 품목의 단가를 공급가 기준으로 맞췄습니다. 견적서 합계금액을 확인하지 못했으니 합계를 원본과 비교해 주세요.`,
+        );
+      }
     }
   }
   if (!useBilled) warnings.push(...mismatches);
@@ -181,4 +188,25 @@ export function assertRaw(x: unknown): RawExtraction {
     throw new Error('응답 스키마가 올바르지 않습니다');
   }
   return x as RawExtraction;
+}
+
+/**
+ * OCR 텍스트에서 견적서의 최종 합계금액을 직접 찾는다(모델이 total_amount를 빠뜨렸을 때의 대비책).
+ * 예: "합계금액 : 일십사만이천사백 원정 ₩142,400" → 142400, "합계 (VAT 포함) 1,292,940원" → 1292940
+ */
+export function findStatedTotal(ocrText: string): number | undefined {
+  const text = ocrText.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+  const patterns = [
+    /합\s*계\s*금\s*액[^\d]{0,40}?([\d][\d,]{2,})/,
+    /총\s*합\s*계[^\d]{0,20}?([\d][\d,]{2,})/,
+    /합\s*계\s*\(\s*VAT\s*포함\s*\)[^\d]{0,20}?([\d][\d,]{2,})/i,
+  ];
+  for (const p of patterns) {
+    const m = text.match(p);
+    if (m) {
+      const n = Number(m[1].replace(/,/g, ''));
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+  }
+  return undefined;
 }
