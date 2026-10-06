@@ -1,0 +1,12 @@
+name = "edu-approval-api"
+main = "src/worker.ts"
+compatibility_date = "2025-01-01"
+
+# 비밀값은 wrangler.toml에 쓰지 않는다. 아래 명령으로 등록:
+#   wrangler secret put UPSTAGE_API_KEY
+#   wrangler secret put GEMINI_API_KEY
+[vars]
+PRIMARY_PROVIDER = "upstage"
+FALLBACK_PROVIDER = "gemini"
+# 웹이 배포된 GitHub Pages 출처(경로 제외). 본인 계정에 맞게 수정
+ALLOWED_ORIGIN = "https://junghwan12.github.io"

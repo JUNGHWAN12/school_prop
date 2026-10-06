@@ -73,19 +73,18 @@ AI 추출값 자동 바인딩 (금액의 한글 표기 `금 팔만오천칠백�
 ---
 3.3 K-에듀파인 표준 '품목내역(통합)' 엑셀 파일 생성 (FR-03) ★
 사용자가 첨부한 `품목내역(통합) (6).xls` 원본 서식의 규격을 엄격히 준수하여 엑셀을 생성합니다.
-엑셀 시트 명세 (단일 Sheet: Sheet1)
+엑셀 시트 명세 (단일 Sheet: `품목내역`, 원본 서식 기준 5열)
 컬럼 순서	컬럼명 (헤더 1행)	데이터 타입	필수 여부	매핑 및 변환 규칙
-A	품명	문자열	필수	품목명 기재 (예: 공간이 만든 공간)
+A	내용	문자열	필수	품목명 기재 (예: 공간이 만든 공간)
 B	규격	문자열	선택	모델명, 저자, 크기 등 (없을 경우 공란 또는 `-`)
 C	단위	문자열	필수	개, 권, 명, 식, 회 등 (기본값: '개' 또는 '권')
 D	수량	숫자 (Integer)	필수	콤마 없는 순수 정수/소수 숫자
-E	예상단가	숫자 (Integer)	필수	부가세(VAT) 포함 최종 단가
-F	예상금액	숫자 (Integer)	필수	`=수량 * 예상단가` (수식 또는 정수값)
+E	예상단가	숫자 (Integer)	필수	부가세(VAT) 포함 최종 단가 (예상금액 열은 서식에 없음)
 엑셀 생성 검증 규칙
-헤더 고정: 1행 헤더 레이블(`품명`, `규격`, `단위`, `수량`, `예상단가`, `예상금액`) 절대 변경 금지.
+헤더 고정: 1행 헤더 레이블(`내용`, `규격`, `단위`, `수량`, `예상단가`) 절대 변경 금지. (원본: docs/samples/품목내역(통합)_원본서식.xls)
 셀 병합(Merge) 금지: K-에듀파인 엑셀 일괄등록 파서 파손 방지.
-숫자 필드 무결성: D, E, F열은 텍스트 포맷이 아닌 반드시 Excel Number Type으로 저장.
-다운로드 파일명 규격: `품목내역(통합)_{대표품목명}_{작성일자}.xls` (또는 `.xlsx`)
+숫자 필드 무결성: D, E열은 텍스트 포맷이 아닌 반드시 Excel Number Type으로 저장.
+다운로드 파일명 규격: `품목내역(통합)_{대표품목명}_{작성일자}.xlsx` (기본, 보조로 `.xls` 제공)
 ---
 4. UI/UX 화면 구성도
 ```
@@ -145,4 +144,22 @@ Structured JSON Output:
 Draft Generation:
 선택된 템플릿(약식, 행사, 식비)에 JSON 데이터를 바인딩하여 품의문 본문 완성.
 Excel Export:
-K-에듀파인 업로드 규격에 맞춰 `품명`, `규격`, `단위`, `수량`, `예상단가`, `예상금액` 열을 정렬하여 `.xls` 바이너리 생성.
+K-에듀파인 업로드 규격에 맞춰 `내용`, `규격`, `단위`, `수량`, `예상단가` 열을 정렬하여 `.xls` 바이너리 생성.
+
+---
+6. 개발·실행 방법
+
+구조: `web/`(React + Vite + TS), `server/`(Hono, Cloudflare Workers 배포 가능), `docs/samples/`(K-에듀파인 원본 서식). 상세 계획은 `개발계획서.md`.
+
+```bash
+# 서버 (http://localhost:8787)  ※ Windows PowerShell 5에서는 && 대신 한 줄씩 실행, cp 대신 copy
+cd server && npm i && cp .env.example .env   # UPSTAGE_API_KEY, GEMINI_API_KEY 입력
+npm run dev
+# 웹 (http://localhost:5173, /api 는 8787로 프록시)
+cd web && npm i && npm run dev
+# 테스트
+cd web && npm test ; cd ../server && npm test
+```
+- API 키는 서버 환경변수로만 관리하며 클라이언트에 노출되지 않습니다. `.env`는 커밋 금지.
+- 배포: 웹은 GitHub Pages, API는 Cloudflare Workers. 절차는 `docs/배포가이드.md` 참고(`.github/workflows/pages.yml`, `worker.yml`).
+- Upstage 엔드포인트·모델명(`UPSTAGE_PARSE_MODEL`, `UPSTAGE_SOLAR_MODEL`)과 Gemini 모델명(`GEMINI_MODEL`)은 환경변수로 교체 가능합니다. 실제 키로 호출 검증 전이므로 공식 문서와 대조가 필요합니다.
