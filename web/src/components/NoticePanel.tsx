@@ -9,7 +9,7 @@ export function NoticePanel() {
     <aside aria-label="분석 안내" className="space-y-3 text-sm xl:sticky xl:top-4 xl:self-start">
       <p className="flex items-start gap-1.5 rounded-lg bg-white p-3 text-xs text-slate-600 shadow-sm">
         <ShieldCheck size={16} className="mt-0.5 shrink-0" />
-        전화번호·주민등록번호·계좌번호는 AI 전송 전에 자동으로 마스킹됩니다.
+        전화번호·주민등록번호·계좌번호·이메일·대표자(담당자) 이름·주소는 AI 전송 전에 자동으로 마스킹됩니다.
       </p>
 
       {status === 'idle' && (

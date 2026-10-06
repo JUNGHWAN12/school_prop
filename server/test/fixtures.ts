@@ -71,8 +71,8 @@ No  품명/규격                          수량   단가(공급가)   금액(�
       statedTotal: 305250,
       warnings: { include: ['VAT 포함(+10%)으로 환산'], exclude: ['다릅니다'] },
     },
-    maskedMustNotContain: ['555-0123', '555-0124', '9876-5432', 'sales@example', '123456-78', '901234'],
-    maskedMustContain: ['123-45-67890', '305,250', '277,500'],
+    maskedMustNotContain: ['555-0123', '555-0124', '9876-5432', 'sales@example', '123456-78', '901234', '홍길동', '예시로 12', '김가상'],
+    maskedMustContain: ['123-45-67890', '305,250', '277,500', '(주)가상상사', '가상고등학교 귀하'],
   },
   {
     name: 'service-row-included',
@@ -109,8 +109,8 @@ NO : 202610010011                       PAGE :  1  /  1
       statedTotal: 130000,
       warnings: { exclude: ['다릅니다', '부가세 포함 여부'] },
     },
-    maskedMustNotContain: ['555-0142', '555-2070', '789012'],
-    maskedMustContain: ['111-22-33333', '130,000', '202610010011'],
+    maskedMustNotContain: ['555-0142', '555-2070', '789012', '이가상', '샘플로 26'],
+    maskedMustContain: ['111-22-33333', '130,000', '202610010011', '주식회사 예시넷', '작업비'],
   },
   {
     name: 'service-row-missed-by-model',
@@ -154,7 +154,7 @@ NO : 202610010011                       PAGE :  1  /  1
 3  빅데이터 시대, 성과를 이끌어 내는 데이터 문해력  이가상  프리렉   1   16,000  16,000  14,400
 4  게임 프로그래밍 패턴          최가상  한빛미디어   1   35,000  35,000  31,500
 5  피지컬AI 2026              정가상  스마트북스   1   25,000  25,000  22,500
-6  운영체제                    박가상  퍼스트북    1   39,000  39,000  39,000
+6  운영체제                    조가상  퍼스트북    1   39,000  39,000  39,000
 합   계                                        5  150,000 150,000 142,400`,
     modelRaw: {
       vat_mode: 'unknown',
@@ -178,8 +178,8 @@ NO : 202610010011                       PAGE :  1  /  1
       statedTotal: 142400,
       warnings: { include: ['공급가 기준'], exclude: ['다릅니다', '부가세 포함 여부'] },
     },
-    maskedMustNotContain: ['555-0123'],
-    maskedMustContain: ['222-33-44444', '142,400'],
+    maskedMustNotContain: ['555-0123', '박가상', '샘플로 39-2'],
+    maskedMustContain: ['222-33-44444', '142,400', '가상서점', '운영체제', '가상고등학교 귀하'],
   },
   {
     name: 'books-multi-quantity-exempt',
@@ -214,6 +214,7 @@ No 도서명 수량 정가 공급가
     name: 'shipping-row',
     description: '배송비 행이 품목으로 포함되어야 하는 VAT 포함 견적서 ("총 합계" 표기)',
     ocrText: `견적서  (주)샘플오피스  등록번호 444-55-66666
+(주)샘플오피스 서울특별시 예시구 샘플로 99 1층
 TEL 070-5555-0199
 1 문서 보관함 4 8,500 34,000
 2 무선 마우스 2 12,000 24,000
@@ -237,13 +238,13 @@ TEL 070-5555-0199
       statedTotal: 61000,
       warnings: { exclude: ['다릅니다'] },
     },
-    maskedMustNotContain: ['5555-0199'],
-    maskedMustContain: ['444-55-66666', '61,000'],
+    maskedMustNotContain: ['5555-0199', '샘플로 99'],
+    maskedMustContain: ['444-55-66666', '61,000', '(주)샘플오피스'],
   },
   {
     name: 'html-table-ocr',
     description: 'Upstage 문서 파싱이 HTML 표로 반환하는 경우 (태그 속 숫자에 속지 않고 합계 탐색)',
-    ocrText: `<table><tr><td colspan="3">견 적 서</td></tr><tr><td>사업자등록번호</td><td>555-66-77777</td></tr><tr><td>전화</td><td>02-555-0100</td></tr><tr><td>합계금액</td><td colspan="3">일금 오만이천 원정 (￦ 52,000)</td></tr><tr><td>품명</td><td>수량</td><td>단가</td><td>금액</td></tr><tr><td>A4 복사용지 (박스)</td><td>2</td><td>15,000</td><td>30,000</td></tr><tr><td>네임펜</td><td>11</td><td>2,000</td><td>22,000</td></tr></table>`,
+    ocrText: `<table><tr><td colspan="3">견 적 서</td></tr><tr><td>사업자등록번호</td><td>555-66-77777</td></tr><tr><td>전화</td><td>02-555-0100</td></tr><tr><td>대표자</td><td>정 가 상</td></tr><tr><td>주소</td><td>서울특별시 예시구 샘플로 7</td></tr><tr><td>합계금액</td><td colspan="3">일금 오만이천 원정 (￦ 52,000)</td></tr><tr><td>품명</td><td>수량</td><td>단가</td><td>금액</td></tr><tr><td>A4 복사용지 (박스)</td><td>2</td><td>15,000</td><td>30,000</td></tr><tr><td>네임펜</td><td>11</td><td>2,000</td><td>22,000</td></tr></table>`,
     modelRaw: {
       vat_mode: 'included',
       items: [
@@ -260,8 +261,8 @@ TEL 070-5555-0199
       statedTotal: 52000,
       warnings: { exclude: ['다릅니다'] },
     },
-    maskedMustNotContain: ['555-0100'],
-    maskedMustContain: ['555-66-77777', '52,000'],
+    maskedMustNotContain: ['555-0100', '정 가 상', '샘플로 7'],
+    maskedMustContain: ['555-66-77777', '52,000', 'A4 복사용지', '네임펜'],
   },
   {
     name: 'no-total-in-document',

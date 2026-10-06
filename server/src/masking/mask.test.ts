@@ -31,6 +31,41 @@ describe('maskPersonalInfo', () => {
   it('같은 줄의 전화번호와 계좌번호', () => {
     expect(maskPersonalInfo('농협 301-1234-5678-91 / 010-1234-5678').text).toBe('농협 ***-****-**78-91 / 010-****-5678');
   });
+  it('대표자·담당자 이름은 라벨 뒤에서만 가린다', () => {
+    const cases: [string, string][] = [
+      ['대표자 홍길동', '대표자 ***'],
+      ['대 표 자 : 홍길동', '대 표 자 : ***'],
+      ['성명 허 성주', '성명 ***'],
+      ['대표이사 김가상  TEL 02-111-2222', '대표이사 ***  TEL 02-***-2222'],
+      ['<td>대표자명</td><td>홍 길 동</td>', '<td>대표자명</td><td>***</td>'],
+      ['| 성명 | 오성혁 |', '| 성명 | *** |'],
+      ['담당자 김가상 과장', '담당자 *** 과장'],
+    ];
+    for (const [input, out] of cases) expect(maskPersonalInfo(input).text, input).toBe(out);
+  });
+  it('주소는 라벨 값 전체를 가린다(다음 라벨·칸 전까지)', () => {
+    const cases: [string, string][] = [
+      ['주소 경기도 가상시 예시로 12     TEL 031-555-0123', '주소 ***     TEL 031-***-0123'],
+      ['사 업장주 소 서귀포시 대정읍 하모상가로39-2', '사 업장주 소 ***'],
+      ['<td>주소</td><td>서울특별시 예시구 샘플로 7</td>', '<td>주소</td><td>***</td>'],
+      ['사업장 소재지: 부산광역시 해운대구 해운대로 1', '사업장 소재지: ***'],
+    ];
+    for (const [input, out] of cases) expect(maskPersonalInfo(input).text, input).toBe(out);
+  });
+  it('라벨 없는 도로명주소도 가린다', () => {
+    expect(maskPersonalInfo('(주)샘플오피스 서울특별시 예시구 샘플로 99 1층').text).toBe('(주)샘플오피스 ***');
+  });
+  it('이름·주소 오탐 방지: 상호·학교명·품목·헤더 행은 보존', () => {
+    const keep = [
+      '대정고등학교 귀하', '상 호 주식회사 해피넷', '1학년교무실 2학년교무실', '합계 3 130,000', '운영체제 35,000',
+      '성명판 홍길동', '주소 | 전화 | 팩스', '대표 합계', '품명 규격 단위 수량 단가', '납품장소 1학년교무실',
+    ];
+    for (const k of keep) expect(maskPersonalInfo(k).text, k).toBe(k);
+  });
+  it('마스킹 건수에 이름·주소 포함', () => {
+    const r = maskPersonalInfo('대표자 홍길동\n주소 경기도 가상시 예시로 12');
+    expect(r.counts).toMatchObject({ name: 1, address: 1 });
+  });
   it('이메일', () => {
     expect(maskPersonalInfo('a.b@school.kr').text).toBe('***@school.kr');
   });
