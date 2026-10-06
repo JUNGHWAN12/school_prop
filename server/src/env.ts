@@ -27,6 +27,9 @@ export interface Env {
   LIMITER?: LimiterNamespace;
 }
 
+/** 외부 AI 호출(문서 파싱·Solar·Gemini) 한 번당 최대 대기 시간. 넘기면 다음 단계(폴백)로 넘어간다. 기본 60초 */
+export const providerTimeoutMs = (env: Env) => num(env.PROVIDER_TIMEOUT_MS, 60_000);
+
 export const num = (v: string | undefined, d: number) => {
   const n = Number(v);
   return v && Number.isFinite(n) && n > 0 ? n : d;

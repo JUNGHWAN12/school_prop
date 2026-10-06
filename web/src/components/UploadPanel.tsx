@@ -32,7 +32,7 @@ export function UploadPanel() {
         className={`cursor-pointer rounded-xl border-2 border-dashed p-6 text-center ${drag ? 'border-blue-500 bg-blue-50' : 'border-slate-300 bg-white'}`}
       >
         {status === 'loading' ? (
-          <div className="flex items-center justify-center gap-2 text-slate-600"><Loader2 className="animate-spin" size={20} /> 견적서 분석 중…</div>
+          <div className="flex items-center justify-center gap-2 text-slate-600"><Loader2 className="animate-spin" size={20} /> 견적서 분석 중… (보통 10~20초, 최대 1분 정도 걸릴 수 있습니다)</div>
         ) : (
           <div className="space-y-1 text-slate-600">
             <UploadCloud className="mx-auto" />

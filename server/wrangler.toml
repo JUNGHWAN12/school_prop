@@ -15,6 +15,7 @@ ALLOWED_ORIGIN = "https://junghwan12.github.io"
 DAILY_CALL_LIMIT = "200"      # 하루 전체 분석 호출 상한
 DAILY_PER_IP_LIMIT = "50"     # 하루 IP당 분석 호출 상한
 MAX_FILE_MB = "10"            # 업로드 최대 크기(MB)
+PROVIDER_TIMEOUT_MS = "60000"  # 외부 AI 호출 1회당 최대 대기(밀리초). 넘기면 폴백으로 전환
 # DISABLE_EXTRACT = "true"    # 남용 시 AI 분석 즉시 중지(킬 스위치). 병합하면 자동 배포됨
 # 품목 추출 모델 (모델명이 틀리면 Gemini 폴백으로 처리되고 "폴백 사용" 안내가 표시됨)
 UPSTAGE_SOLAR_MODEL = "solar-pro4"

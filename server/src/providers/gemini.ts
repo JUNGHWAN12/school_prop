@@ -1,5 +1,5 @@
 import type { Env } from '../env';
-import { num } from '../env';
+import { providerTimeoutMs } from '../env';
 import { EXTRACTION_SCHEMA, SYSTEM_PROMPT, assertRaw, parseJsonLoose, type RawExtraction } from '../extraction';
 import { ProviderError, failure } from './upstage';
 
@@ -15,7 +15,7 @@ export async function geminiExtract(env: Env, maskedText: string): Promise<RawEx
       contents: [{ role: 'user', parts: [{ text: maskedText }] }],
       generationConfig: { temperature: 0, responseMimeType: 'application/json' },
     }),
-    signal: AbortSignal.timeout(num(env.PROVIDER_TIMEOUT_MS, 20000)),
+    signal: AbortSignal.timeout(providerTimeoutMs(env)),
   });
   void EXTRACTION_SCHEMA; // 스키마는 프롬프트로 전달(모델별 responseSchema 방언 차이 회피)
   if (!res.ok) throw await failure(res, 'Gemini 호출 실패');
