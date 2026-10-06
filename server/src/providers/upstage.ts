@@ -1,5 +1,5 @@
 import type { Env } from '../env';
-import { num } from '../env';
+import { providerTimeoutMs } from '../env';
 import { EXTRACTION_SCHEMA, SYSTEM_PROMPT, assertRaw, parseJsonLoose, type RawExtraction } from '../extraction';
 
 /**
@@ -32,7 +32,7 @@ export async function upstageOcr(env: Env, file: File): Promise<string> {
     method: 'POST',
     headers: { Authorization: `Bearer ${env.UPSTAGE_API_KEY}` },
     body: form,
-    signal: AbortSignal.timeout(num(env.PROVIDER_TIMEOUT_MS, 20000)),
+    signal: AbortSignal.timeout(providerTimeoutMs(env)),
   });
   if (!res.ok) throw await failure(res, 'Upstage 문서 파싱 실패');
   const j = (await res.json()) as {
@@ -61,7 +61,7 @@ export async function solarExtract(env: Env, maskedText: string): Promise<RawExt
       ],
       response_format: { type: 'json_schema', json_schema: { name: 'quote', schema: EXTRACTION_SCHEMA, strict: false } },
     }),
-    signal: AbortSignal.timeout(num(env.PROVIDER_TIMEOUT_MS, 20000)),
+    signal: AbortSignal.timeout(providerTimeoutMs(env)),
   });
   if (!res.ok) throw await failure(res, 'Solar 호출 실패');
   const j = (await res.json()) as { choices?: { message?: { content?: string } }[] };
