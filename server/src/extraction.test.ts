@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assertRaw, normalizeExtraction, parseJsonLoose } from './extraction';
+import { assertRaw, findStatedTotal, normalizeExtraction, parseJsonLoose } from './extraction';
 
 describe('normalizeExtraction', () => {
   it('VAT 포함/면세는 단가 그대로', () => {
@@ -21,13 +21,14 @@ describe('normalizeExtraction', () => {
     const n = normalizeExtraction({ vat_mode: 'excluded', items: [{ item_name: 'A', quantity: 1, unit_price: 1000 }] });
     expect(n.items[0].unitPrice).toBe(1100);
   });
-  it('금액 불일치 경고, 잘못된 항목 제외', () => {
+  it('단가×수량≠금액이면 금액(실제 청구액) 기준으로 맞추고, 잘못된 항목은 제외', () => {
     const n = normalizeExtraction({ vat_mode: 'included', items: [
       { item_name: 'A', quantity: 2, unit_price: 1000, line_amount: 3000 },
       { item_name: '', quantity: 1, unit_price: 1 },
     ] });
     expect(n.items).toHaveLength(1);
-    expect(n.warnings.some((w) => w.includes('다릅니다'))).toBe(true);
+    expect(n.items[0].unitPrice).toBe(1500);
+    expect(n.warnings.some((w) => w.includes('공급가 기준'))).toBe(true);
     expect(n.warnings.some((w) => w.includes('제외'))).toBe(true);
   });
   it('알 수 없는 템플릿은 약식', () => {
@@ -80,15 +81,27 @@ describe('정가와 공급가가 다른 견적서(도서 할인)', () => {
     const n = normalizeExtraction({ vat_mode: 'exempt', total_amount: 28800, items: [{ item_name: 'A', quantity: 2, unit_price: 16000, line_amount: 28800 }] });
     expect(n.items[0].unitPrice).toBe(14400);
   });
-  it('합계금액이 없으면 임의로 바꾸지 않고 불일치만 경고', () => {
-    const n = normalizeExtraction({ vat_mode: 'exempt', items: [{ item_name: 'A', quantity: 1, unit_price: 16000, line_amount: 14400 }] });
-    expect(n.items[0].unitPrice).toBe(16000);
-    expect(n.warnings.some((w) => w.includes('다릅니다'))).toBe(true);
+  it('합계금액이 없어도 금액(공급가) 열을 실제 청구액으로 보고 단가를 맞춘다', () => {
+    const n = normalizeExtraction({ vat_mode: 'unknown', items: books });
+    expect(n.items.map((i) => i.unitPrice)).toEqual([35000, 14400, 31500, 22500, 39000]);
+    expect(n.warnings.some((w) => w.includes('공급가 기준') && w.includes('합계금액을 확인하지 못했'))).toBe(true);
+    expect(n.warnings.some((w) => w.includes('다릅니다'))).toBe(false);
   });
   it('정가 합계가 합계금액과 맞으면 정가 유지', () => {
     const n = normalizeExtraction({ vat_mode: 'included', total_amount: 16000, items: [{ item_name: 'A', quantity: 1, unit_price: 16000, line_amount: 14400 }] });
     expect(n.items[0].unitPrice).toBe(16000);
   });
+});
+
+describe('findStatedTotal (OCR 원문에서 합계금액 찾기)', () => {
+  it.each([
+    ['합계금액 : 일십사만이천사백 원정 ₩142,400  연번 도서명', 142400],
+    ['합계금액 :           일금    일십삼만 원정 (￦ 130,000 ) (부가세포함)', 130000],
+    ['<td>합계 금액</td><td colspan="2">1,292,940원</td>', 1292940],
+    ['총 합계: 1,292,940원 부가세 117,540', 1292940],
+    ['합계 (VAT 포함) 1,292,940원', 1292940],
+  ])('%s', (text, expected) => expect(findStatedTotal(text)).toBe(expected));
+  it('없으면 undefined', () => expect(findStatedTotal('견적서 품목 1 35,000')).toBeUndefined());
 });
 
 describe('parse', () => {
