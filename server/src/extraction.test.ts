@@ -59,6 +59,38 @@ describe('견적서 합계 대조', () => {
   });
 });
 
+describe('정가와 공급가가 다른 견적서(도서 할인)', () => {
+  const books = [
+    { item_name: '운영체제', quantity: 1, unit_price: 35000, line_amount: 35000 },
+    { item_name: '왜 건물은 지진에 무너지지 않을까?-절판', quantity: 0, unit_price: 0 },
+    { item_name: '빅데이터 시대', quantity: 1, unit_price: 16000, line_amount: 14400 },
+    { item_name: '게임 프로그래밍 패턴', quantity: 1, unit_price: 35000, line_amount: 31500 },
+    { item_name: '피지컬AI 2026', quantity: 1, unit_price: 25000, line_amount: 22500 },
+    { item_name: '운영체제', quantity: 1, unit_price: 39000, line_amount: 39000 },
+  ];
+  it('합계금액과 맞는 공급가 기준으로 단가를 정한다', () => {
+    const n = normalizeExtraction({ vat_mode: 'exempt', total_amount: 142400, items: books });
+    expect(n.items.map((i) => i.unitPrice)).toEqual([35000, 14400, 31500, 22500, 39000]);
+    expect(n.items.reduce((a, i) => a + i.quantity * i.unitPrice, 0)).toBe(142400);
+    expect(n.warnings.some((w) => w.includes('공급가 기준'))).toBe(true);
+    expect(n.warnings.some((w) => w.includes('다릅니다'))).toBe(false);
+    expect(n.warnings.some((w) => w.includes('절판'))).toBe(true);
+  });
+  it('수량이 2 이상이면 공급가/수량으로 단가 계산', () => {
+    const n = normalizeExtraction({ vat_mode: 'exempt', total_amount: 28800, items: [{ item_name: 'A', quantity: 2, unit_price: 16000, line_amount: 28800 }] });
+    expect(n.items[0].unitPrice).toBe(14400);
+  });
+  it('합계금액이 없으면 임의로 바꾸지 않고 불일치만 경고', () => {
+    const n = normalizeExtraction({ vat_mode: 'exempt', items: [{ item_name: 'A', quantity: 1, unit_price: 16000, line_amount: 14400 }] });
+    expect(n.items[0].unitPrice).toBe(16000);
+    expect(n.warnings.some((w) => w.includes('다릅니다'))).toBe(true);
+  });
+  it('정가 합계가 합계금액과 맞으면 정가 유지', () => {
+    const n = normalizeExtraction({ vat_mode: 'included', total_amount: 16000, items: [{ item_name: 'A', quantity: 1, unit_price: 16000, line_amount: 14400 }] });
+    expect(n.items[0].unitPrice).toBe(16000);
+  });
+});
+
 describe('parse', () => {
   it('코드펜스 허용', () => expect(parseJsonLoose('```json\n{"items":[]}\n```')).toEqual({ items: [] }));
   it('스키마 위반', () => expect(() => assertRaw({ a: 1 })).toThrow());

@@ -70,8 +70,10 @@ export const SYSTEM_PROMPT = `당신은 한국 학교 행정용 견적서 분석
 - items: 견적 표의 모든 순번 행을 빠짐없이 포함하세요. 작업비·설치비·공임·배송비·운반비·인건비 같은 용역/비용 행도 수량과 금액이 있으면 품목입니다(단위가 비어 있어도 포함).
   제외하는 것은 합계/소계/공급가액 합계/세액 합계 같은 집계 행뿐입니다. 문서 순서 유지.
   - item_name 품명, spec 규격(없으면 ""), unit 단위(없으면 도서는 "권", 그 외 "개"), quantity 수량(숫자),
-    unit_price 견적서에 적힌 단가(숫자, 콤마 제거), line_amount 해당 품목 금액, line_tax 해당 품목 세액(없으면 0).
-- vat_mode: 단가가 부가세 포함이면 "included", 별도(공급가액 기준)이면 "excluded", 면세(도서 등)이면 "exempt", 불명확하면 "unknown".
+    unit_price 견적서에 적힌 단가(숫자, 콤마 제거), line_amount 해당 행의 실제 청구 금액(공급가/금액 열), line_tax 해당 품목 세액(없으면 0).
+    정가(할인 전)와 공급가가 함께 있으면 unit_price에는 정가를, line_amount에는 공급가를 그대로 쓰세요.
+    수량이나 금액이 비어 있는 행(절판·품절 표시 등)은 품목에서 제외하세요.
+- vat_mode: 단가가 부가세 포함이면 "included", 별도(공급가액 기준)이면 "excluded", 면세(도서 등, 부가세 언급이 없는 도서 견적 포함)이면 "exempt", 불명확하면 "unknown".
 - suggested_template: 도서·소모품 구매=TEMPLATE_PURCHASE, 대회/연수/행사 참가비=TEMPLATE_EVENT, 식비·급량비·다과=TEMPLATE_MEAL.
 - total_amount: 견적서에 적힌 최종 합계금액(부가세 포함 청구 총액, 숫자). 없으면 생략.
 - vendor_name, business_no(사업자등록번호), quote_date(견적일자)는 보이는 대로. 없으면 생략.
@@ -85,13 +87,16 @@ export function normalizeExtraction(raw: RawExtraction): Normalized {
   if (mode === 'unknown') warnings.push('부가세 포함 여부를 판단하지 못했습니다. 단가를 확인해 주세요.');
 
   const items: NormalizedItem[] = [];
+  /** 견적서에 적힌 행별 청구 금액(공급가 열 등). 정가≠공급가인 견적서 처리에 사용 */
+  const billed: (number | undefined)[] = [];
+  const mismatches: string[] = [];
   let converted = 0;
   for (const [idx, r] of (raw.items ?? []).entries()) {
     const name = String(r.item_name ?? '').trim();
     const qty = Number(r.quantity);
     const price = Number(r.unit_price);
     if (!name || !Number.isFinite(qty) || qty <= 0 || !Number.isFinite(price) || price < 0) {
-      warnings.push(`${idx + 1}번째 항목을 해석하지 못해 제외했습니다.`);
+      warnings.push(`${idx + 1}번째 항목${name ? `('${name.slice(0, 30)}')` : ''}은 수량 또는 금액이 없어 제외했습니다. (절판·품절 등이면 정상입니다)`);
       continue;
     }
     let unitPrice = price;
@@ -102,8 +107,9 @@ export function normalizeExtraction(raw: RawExtraction): Normalized {
       converted += 1;
     }
     if (mode !== 'excluded' && Number.isFinite(amount) && amount > 0 && Math.abs(qty * price - amount) > 1) {
-      warnings.push(`'${name}': 수량×단가(${Math.round(qty * price).toLocaleString('ko-KR')})가 견적서 금액(${amount.toLocaleString('ko-KR')})과 다릅니다. 확인해 주세요.`);
+      mismatches.push(`'${name}': 수량×단가(${Math.round(qty * price).toLocaleString('ko-KR')})가 견적서 금액(${amount.toLocaleString('ko-KR')})과 다릅니다. 확인해 주세요.`);
     }
+    billed.push(Number.isFinite(amount) && amount > 0 ? amount : undefined);
     items.push({
       itemName: name,
       spec: String(r.spec ?? '').trim(),
@@ -113,7 +119,30 @@ export function normalizeExtraction(raw: RawExtraction): Normalized {
     });
   }
   const stated = Number(raw.total_amount);
-  if (items.length > 0 && Number.isFinite(stated) && stated > 0) {
+  const hasStated = Number.isFinite(stated) && stated > 0;
+
+  // 정가(단가 열)와 공급가(실제 청구액)가 다른 견적서(도서 할인 등): 합계금액과 맞는 쪽을 기준으로 단가를 정한다.
+  let useBilled = false;
+  if (mode !== 'excluded' && hasStated && items.length > 0) {
+    const tol = Math.max(10, Math.round(stated * 0.002));
+    const byPrice = items.reduce((a, i) => a + i.quantity * i.unitPrice, 0);
+    const byBilled = items.reduce((a, i, k) => a + (billed[k] ?? i.quantity * i.unitPrice), 0);
+    if (Math.abs(byPrice - stated) > tol && Math.abs(byBilled - stated) <= tol) {
+      let n = 0;
+      items.forEach((it, k) => {
+        const b = billed[k];
+        if (b !== undefined && Math.abs(it.quantity * it.unitPrice - b) > 1) {
+          it.unitPrice = Math.round(b / it.quantity);
+          n += 1;
+        }
+      });
+      useBilled = n > 0;
+      if (useBilled) warnings.push(`견적서의 단가(정가)와 공급가(실제 청구액)가 달라, ${n}개 품목의 단가를 공급가 기준으로 맞췄습니다. 견적서 합계금액과 일치합니다.`);
+    }
+  }
+  if (!useBilled) warnings.push(...mismatches);
+
+  if (items.length > 0 && hasStated) {
     const sum = items.reduce((a, i) => a + i.quantity * i.unitPrice, 0);
     const tolerance = Math.max(10, Math.round(stated * 0.002)); // 단가별 반올림 오차 허용
     if (Math.abs(sum - stated) > tolerance) {
@@ -129,7 +158,7 @@ export function normalizeExtraction(raw: RawExtraction): Normalized {
     businessNo: raw.business_no?.trim() || undefined,
     quoteDate: raw.quote_date?.trim() || undefined,
     items,
-    statedTotal: Number.isFinite(stated) && stated > 0 ? stated : undefined,
+    statedTotal: hasStated ? stated : undefined,
     warnings,
   };
 }
