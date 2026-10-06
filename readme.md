@@ -151,14 +151,24 @@ K-에듀파인 업로드 규격에 맞춰 `내용`, `규격`, `단위`, `수량`
 
 구조: `web/`(React + Vite + TS), `server/`(Hono, Cloudflare Workers 배포 가능), `docs/samples/`(K-에듀파인 원본 서식). 상세 계획은 `개발계획서.md`.
 
-```bash
-# 서버 (http://localhost:8787)  ※ Windows PowerShell 5에서는 && 대신 한 줄씩 실행, cp 대신 copy
-cd server && npm i && cp .env.example .env   # UPSTAGE_API_KEY, GEMINI_API_KEY 입력
+```powershell
+# 서버 (http://localhost:8787) - Windows PowerShell, 한 줄씩 실행
+cd server
+npm i
+copy .env.example .env
+notepad .env          # UPSTAGE_API_KEY, GEMINI_API_KEY 입력 후 저장
 npm run dev
-# 웹 (http://localhost:5173, /api 는 8787로 프록시)
-cd web && npm i && npm run dev
+
+# 웹 (http://localhost:5173, /api 는 8787로 프록시) - 새 PowerShell 창에서
+cd web
+npm i
+npm run dev
+
 # 테스트
-cd web && npm test ; cd ../server && npm test
+cd web
+npm test
+cd ..\server
+npm test
 ```
 - API 키는 서버 환경변수로만 관리하며 클라이언트에 노출되지 않습니다. `.env`는 커밋 금지.
 - 배포: 웹은 GitHub Pages, API는 Cloudflare Workers. 절차는 `docs/배포가이드.md` 참고(`.github/workflows/pages.yml`, `worker.yml`).
