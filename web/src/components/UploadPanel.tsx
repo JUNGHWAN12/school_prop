@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { Loader2, UploadCloud } from 'lucide-react';
 import { useStore } from '../store/useStore';
 
-const MAX = 20 * 1024 * 1024;
+const MAX = 10 * 1024 * 1024;
 const OK = ['application/pdf', 'image/jpeg', 'image/png'];
 
 export function UploadPanel() {
@@ -14,7 +14,7 @@ export function UploadPanel() {
   const pick = (f?: File) => {
     if (!f) return;
     if (!OK.includes(f.type)) return setLocalErr('PDF, JPG, PNG 파일만 지원합니다.');
-    if (f.size > MAX) return setLocalErr('파일은 20MB 이하여야 합니다.');
+    if (f.size > MAX) return setLocalErr('파일은 10MB 이하여야 합니다.');
     setLocalErr('');
     void analyze(f);
   };
@@ -36,7 +36,7 @@ export function UploadPanel() {
         ) : (
           <div className="space-y-1 text-slate-600">
             <UploadCloud className="mx-auto" />
-            <p>견적서(PDF/JPG/PNG, 20MB 이하)를 끌어놓거나 클릭해서 선택</p>
+            <p>견적서(PDF/JPG/PNG, 10MB 이하)를 끌어놓거나 클릭해서 선택</p>
           </div>
         )}
         <input ref={input} type="file" accept=".pdf,.jpg,.jpeg,.png" hidden onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ''; }} />

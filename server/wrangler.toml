@@ -5,10 +5,25 @@ compatibility_date = "2025-01-01"
 # 비밀값은 wrangler.toml에 쓰지 않는다. 아래 명령으로 등록:
 #   wrangler secret put UPSTAGE_API_KEY
 #   wrangler secret put GEMINI_API_KEY
+#   wrangler secret put TURNSTILE_SECRET_KEY   (Turnstile 사용 시)
 [vars]
 PRIMARY_PROVIDER = "upstage"
 FALLBACK_PROVIDER = "gemini"
 # 웹이 배포된 GitHub Pages 출처(경로 제외). 본인 계정에 맞게 수정
 ALLOWED_ORIGIN = "https://junghwan12.github.io"
+# 남용 방지 설정
+DAILY_CALL_LIMIT = "200"      # 하루 전체 분석 호출 상한
+DAILY_PER_IP_LIMIT = "50"     # 하루 IP당 분석 호출 상한
+MAX_FILE_MB = "10"            # 업로드 최대 크기(MB)
+# DISABLE_EXTRACT = "true"    # 남용 시 AI 분석 즉시 중지(킬 스위치). 병합하면 자동 배포됨
 # 품목 추출 모델 (모델명이 틀리면 Gemini 폴백으로 처리되고 "폴백 사용" 안내가 표시됨)
 UPSTAGE_SOLAR_MODEL = "solar-pro4"
+
+# 전역 호출 카운터(Durable Object, SQLite 저장). 처음 배포할 때 자동으로 생성됨
+[[durable_objects.bindings]]
+name = "LIMITER"
+class_name = "Limiter"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Limiter"]
