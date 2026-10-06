@@ -79,6 +79,7 @@ export function normalizeExtraction(raw: RawExtraction): Normalized {
   if (mode === 'unknown') warnings.push('부가세 포함 여부를 판단하지 못했습니다. 단가를 확인해 주세요.');
 
   const items: NormalizedItem[] = [];
+  let converted = 0;
   for (const [idx, r] of (raw.items ?? []).entries()) {
     const name = String(r.item_name ?? '').trim();
     const qty = Number(r.quantity);
@@ -92,7 +93,7 @@ export function normalizeExtraction(raw: RawExtraction): Normalized {
     const amount = Number(r.line_amount);
     if (mode === 'excluded') {
       unitPrice = tax > 0 && Number.isFinite(amount) && amount > 0 ? Math.round((amount + tax) / qty) : Math.round(price * 1.1);
-      warnings.push(`'${name}': 부가세 별도 단가를 VAT 포함(${unitPrice.toLocaleString('ko-KR')}원)으로 환산했습니다.`);
+      converted += 1;
     }
     if (mode !== 'excluded' && Number.isFinite(amount) && amount > 0 && Math.abs(qty * price - amount) > 1) {
       warnings.push(`'${name}': 수량×단가(${Math.round(qty * price).toLocaleString('ko-KR')})가 견적서 금액(${amount.toLocaleString('ko-KR')})과 다릅니다. 확인해 주세요.`);
@@ -105,6 +106,7 @@ export function normalizeExtraction(raw: RawExtraction): Normalized {
       unitPrice,
     });
   }
+  if (converted > 0) warnings.push(`견적서 단가가 부가세 별도라서 ${converted}개 품목의 단가를 VAT 포함(+10%)으로 환산했습니다. 합계를 견적서와 비교해 확인해 주세요.`);
   if (items.length === 0) warnings.push('품목을 찾지 못했습니다. 직접 입력해 주세요.');
 
   return {

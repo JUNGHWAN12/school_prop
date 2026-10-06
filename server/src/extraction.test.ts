@@ -11,6 +11,12 @@ describe('normalizeExtraction', () => {
     const n = normalizeExtraction({ vat_mode: 'excluded', items: [{ item_name: 'A', quantity: 2, unit_price: 1000, line_amount: 2000, line_tax: 200 }] });
     expect(n.items[0].unitPrice).toBe(1100);
   });
+  it('VAT 환산 안내는 품목 수와 무관하게 한 줄', () => {
+    const items = Array.from({ length: 10 }, (_, i) => ({ item_name: `A${i}`, quantity: 1, unit_price: 1000 }));
+    const n = normalizeExtraction({ vat_mode: 'excluded', items });
+    expect(n.warnings.filter((w) => w.includes('환산'))).toHaveLength(1);
+    expect(n.warnings[0]).toContain('10개 품목');
+  });
   it('VAT 별도에 세액이 없으면 10% 가산', () => {
     const n = normalizeExtraction({ vat_mode: 'excluded', items: [{ item_name: 'A', quantity: 1, unit_price: 1000 }] });
     expect(n.items[0].unitPrice).toBe(1100);
