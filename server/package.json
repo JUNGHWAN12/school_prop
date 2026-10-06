@@ -8,7 +8,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "deploy": "wrangler deploy",
-    "diagnose": "tsx scripts/diagnose.ts"
+    "diagnose": "tsx scripts/diagnose.ts",
+    "eval": "tsx scripts/eval.ts"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.3",

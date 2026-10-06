@@ -107,6 +107,29 @@ cd server
 npx tsx scripts\diagnose.ts "C:\경로\견적서.pdf"
 ```
 
+## 테스트와 정확도 평가
+
+**자동 테스트(회귀)** — 마스킹, 합계 탐색, 단가 환산, 합계 대조를 익명 견적서 데이터 8종(`server/test/fixtures.ts`)으로 검증합니다. PR마다 GitHub Actions(`ci.yml`)가 웹·서버 테스트와 타입체크를 실행합니다.
+
+**실제 모델 평가** — 같은 데이터를 실제 Solar/Gemini에 보내 결과를 기대값과 비교합니다(키 필요, `server\.env`). 프롬프트·모델을 바꾼 뒤 기존 양식이 깨지지 않는지 확인할 때 사용하세요.
+
+```powershell
+cd server
+npx tsx scripts\eval.ts
+npx tsx scripts\eval.ts --provider gemini
+npx tsx scripts\eval.ts --case books
+```
+
+운영과 같은 모델로 평가하려면 `server\.env`에 `UPSTAGE_SOLAR_MODEL=solar-pro4`를 넣으세요.
+
+**실제 견적서 점검** — 폴더 안의 PDF/이미지를 전체 파이프라인(문서 파싱 → 마스킹 → 모델 → 검증)으로 돌려, 품목 수·합계·견적서 합계와의 일치 여부·경고를 요약합니다. 기대값 비교는 없고 파일은 저장소에 올라가지 않습니다.
+
+```powershell
+npx tsx scripts\eval.ts --files "C:\견적서폴더"
+```
+
+틀리는 견적서를 발견하면 **개인정보를 가린 텍스트**로 `server/test/fixtures.ts`에 사례를 추가해 주세요(실제 업체명·번호·주소·계좌는 넣지 않습니다).
+
 ## 설정
 
 서버 환경변수 (`server/wrangler.toml`의 `[vars]` 또는 시크릿)
