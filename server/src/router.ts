@@ -1,5 +1,5 @@
 import type { Env } from './env';
-import { findStatedTotal, normalizeExtraction, type Normalized, type RawExtraction } from './extraction';
+import { finalizeExtraction, type Normalized, type RawExtraction } from './extraction';
 import { maskPersonalInfo } from './masking/mask';
 import { geminiExtract } from './providers/gemini';
 import { ProviderError, solarExtract, upstageOcr } from './providers/upstage';
@@ -62,8 +62,7 @@ export async function extractQuote(env: Env, file: File): Promise<ExtractResult>
       const raw = await LLMS[name](env, masked);
       recordOk(name);
       // 모델이 합계금액을 빠뜨려도 OCR 원문에서 찾아 품목 합계와 대조한다
-      if (!(Number(raw.total_amount) > 0)) raw.total_amount = findStatedTotal(masked);
-      const normalized = normalizeExtraction(raw);
+      const normalized = finalizeExtraction(raw, masked);
       if (i > 0) normalized.warnings.unshift(`${primary} 처리에 실패해 ${name}으로 처리했습니다.`);
       return { ...normalized, provider: name, fallbackUsed: i > 0, maskedCounts: counts, timingsMs: { ocr: t1 - t0, llm: Date.now() - t1 } };
     } catch (e) {

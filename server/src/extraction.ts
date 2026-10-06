@@ -215,3 +215,16 @@ export function findStatedTotal(ocrText: string): number | undefined {
   }
   return undefined;
 }
+
+/**
+ * 모델 응답을 최종 결과로 만든다. 모델이 합계금액을 빠뜨리면 마스킹된 OCR 원문에서 직접 찾아 보완한 뒤 정규화한다.
+ * (서버 라우터와 테스트·평가 스크립트가 같은 경로를 쓰도록 분리)
+ */
+export function finalizeExtraction(raw: RawExtraction, maskedText: string): Normalized {
+  let r = raw;
+  if (!(Number(raw.total_amount) > 0)) {
+    const t = findStatedTotal(maskedText);
+    if (t) r = { ...raw, total_amount: t };
+  }
+  return normalizeExtraction(r);
+}
