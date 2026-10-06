@@ -39,7 +39,8 @@ export function maskPersonalInfo(input: string): MaskResult {
     .join('\n');
 
   // 전화번호: 휴대폰·지역번호(가운데 자리 마스킹), 대표번호
-  text = text.replace(/(?<![\d-])(01[016789]|0[2-6]\d?|070)[-. ]?(\d{3,4})[-. ]?(\d{4})(?![\d-])/g, (_m, a, b, c) => {
+  // 괄호 지역번호 "(064) 794-2309", "064)794-2309" 형식도 처리
+  text = text.replace(/(?<![\d-])\(?(01[016789]|0[2-6]\d?|070)\)?[-. ]?(\d{3,4})[-. ]?(\d{4})(?![\d-])/g, (_m, a, b, c) => {
     counts.phone++;
     return `${a}-${'*'.repeat(b.length)}-${c}`;
   });
