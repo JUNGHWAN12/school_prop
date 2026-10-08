@@ -1,5 +1,6 @@
 import type { QuoteExtraction } from '../types';
 import { getTurnstileToken } from './turnstile';
+import type { VatChoice } from './vat';
 
 /** 배포 시 Cloudflare Worker 주소(VITE_API_BASE). 로컬은 빈 값 → vite 프록시 */
 const API = ((import.meta.env.VITE_API_BASE as string | undefined) ?? '').replace(/\/$/, '');
@@ -30,9 +31,10 @@ async function parse(res: Response) {
   throw new ApiError(MESSAGES[code] ?? `요청에 실패했습니다 (${res.status})`, code, !!j.manual, res.status, j.detail ? `[${j.stage ?? '?'}] ${j.detail}` : '');
 }
 
-export async function extract(file: File): Promise<QuoteExtraction> {
+export async function extract(file: File, vat: VatChoice = 'auto'): Promise<QuoteExtraction> {
   const fd = new FormData();
   fd.append('file', file);
+  fd.append('vat_mode', vat);
   let token = '';
   try {
     token = await getTurnstileToken();

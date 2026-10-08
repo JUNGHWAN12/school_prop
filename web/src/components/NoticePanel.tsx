@@ -1,4 +1,5 @@
 import { AlertTriangle, CheckCircle2, Info, ShieldCheck } from 'lucide-react';
+import { describeVat } from '../lib/vat';
 import { useStore } from '../store/useStore';
 
 /** 분석 결과 안내·경고·오류를 모아 보여주는 패널 (넓은 화면에서는 왼쪽 고정 영역) */
@@ -36,6 +37,12 @@ export function NoticePanel() {
             <span className="text-xs text-emerald-700">
               처리: {meta.provider === 'gemini' ? 'Gemini' : 'Upstage Solar'}{meta.fallbackUsed && ' (폴백)'}
             </span>
+            {describeVat(meta.vatMode, meta.vatSource) && (
+              <>
+                <br />
+                <span className="text-xs text-emerald-700">단가 기준: {describeVat(meta.vatMode, meta.vatSource)}</span>
+              </>
+            )}
           </span>
         </p>
       )}

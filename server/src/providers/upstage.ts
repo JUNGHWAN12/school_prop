@@ -1,6 +1,6 @@
 import type { Env } from '../env';
 import { providerTimeoutMs } from '../env';
-import { EXTRACTION_SCHEMA, SYSTEM_PROMPT, assertRaw, parseJsonLoose, type RawExtraction } from '../extraction';
+import { EXTRACTION_SCHEMA, assertRaw, buildSystemPrompt, parseJsonLoose, type RawExtraction, type VatChoice } from '../extraction';
 
 /**
  * 엔드포인트·모델명은 Upstage 공식 문서 기준 기본값이며 환경변수로 교체 가능하다.
@@ -47,7 +47,7 @@ export async function upstageOcr(env: Env, file: File): Promise<string> {
 }
 
 /** 2단계: 마스킹된 텍스트 → 구조화 JSON (Solar) */
-export async function solarExtract(env: Env, maskedText: string): Promise<RawExtraction> {
+export async function solarExtract(env: Env, maskedText: string, vat: VatChoice = 'auto'): Promise<RawExtraction> {
   if (!env.UPSTAGE_API_KEY) throw new ProviderError('UPSTAGE_API_KEY 미설정', 500, false);
   const res = await fetch(`${base(env)}/chat/completions`, {
     method: 'POST',
@@ -56,7 +56,7 @@ export async function solarExtract(env: Env, maskedText: string): Promise<RawExt
       model: env.UPSTAGE_SOLAR_MODEL ?? 'solar-pro2',
       temperature: 0,
       messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'system', content: buildSystemPrompt(vat) },
         { role: 'user', content: maskedText },
       ],
       response_format: { type: 'json_schema', json_schema: { name: 'quote', schema: EXTRACTION_SCHEMA, strict: false } },

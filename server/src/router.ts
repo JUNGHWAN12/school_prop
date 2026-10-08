@@ -1,11 +1,11 @@
 import type { Env } from './env';
-import { finalizeExtraction, type Normalized, type RawExtraction } from './extraction';
+import { finalizeExtraction, type Normalized, type RawExtraction, type VatChoice } from './extraction';
 import { maskPersonalInfo } from './masking/mask';
 import { geminiExtract } from './providers/gemini';
 import { ProviderError, solarExtract, upstageOcr } from './providers/upstage';
 
 type LlmName = 'upstage' | 'gemini';
-type Llm = (env: Env, text: string) => Promise<RawExtraction>;
+type Llm = (env: Env, text: string, vat?: VatChoice) => Promise<RawExtraction>;
 const LLMS: Record<LlmName, Llm> = { upstage: solarExtract, gemini: geminiExtract };
 
 /** 연속 실패 시 일정 시간 우회 (서킷브레이커, 인스턴스 메모리 기준) */
@@ -39,7 +39,7 @@ const asName = (v: string | undefined, d: LlmName): LlmName => (v === 'gemini' |
  * 파이프라인(마스킹 강제): Upstage 문서 파싱 → 개인정보 마스킹 → LLM(우선) → 실패 시 LLM(폴백).
  * 어떤 LLM에도 원본 파일/이미지는 전달되지 않는다. OCR이 실패하면 외부 전송 없이 실패 처리(수동 입력 안내).
  */
-export async function extractQuote(env: Env, file: File): Promise<ExtractResult> {
+export async function extractQuote(env: Env, file: File, vat: VatChoice = 'auto'): Promise<ExtractResult> {
   const t0 = Date.now();
   let text: string;
   try {
@@ -59,10 +59,10 @@ export async function extractQuote(env: Env, file: File): Promise<ExtractResult>
   for (const [i, name] of order.entries()) {
     if (isOpen(name)) { errors.push(`${name}: 연속 실패로 일시 우회 중`); continue; }
     try {
-      const raw = await LLMS[name](env, masked);
+      const raw = await LLMS[name](env, masked, vat);
       recordOk(name);
       // 모델이 합계금액을 빠뜨려도 OCR 원문에서 찾아 품목 합계와 대조한다
-      const normalized = finalizeExtraction(raw, masked);
+      const normalized = finalizeExtraction(raw, masked, vat);
       if (i > 0) normalized.warnings.unshift(`${primary} 처리에 실패해 ${name}으로 처리했습니다.`);
       return { ...normalized, provider: name, fallbackUsed: i > 0, maskedCounts: counts, timingsMs: { ocr: t1 - t0, llm: Date.now() - t1 } };
     } catch (e) {

@@ -3,7 +3,7 @@
  * 실제 견적서에서 발견한 양식 패턴(VAT 별도, 용역 행, 정가/공급가, HTML 표 등)만 본뜬 것이다.
  * 실제 견적서 원문·개인정보는 절대 이 파일에 넣지 않는다.
  */
-import type { RawExtraction } from '../src/extraction';
+import type { RawExtraction, VatChoice, VatMode, VatSource } from '../src/extraction';
 
 export interface ExpectedItem {
   /** 품명에 포함되어야 하는 문자열 */
@@ -18,6 +18,8 @@ export interface FixtureCase {
   description: string;
   /** OCR 단계가 반환한다고 가정한 원문(마스킹 전) */
   ocrText: string;
+  /** 사용자가 업로드 전에 고른 단가 기준(없으면 자동) */
+  userVat?: VatChoice;
   /** 모델이 반환할 법한 응답(의도적으로 합계금액을 빠뜨리거나 정가를 단가로 쓰는 등 현실적인 오류 포함) */
   modelRaw: RawExtraction;
   expect: {
@@ -27,6 +29,8 @@ export interface FixtureCase {
     /** 견적서 합계금액을 찾아야 하는 경우 */
     statedTotal?: number;
     warnings?: { include?: string[]; exclude?: string[] };
+    /** 적용되어야 할 단가 기준과 근거 */
+    vat?: { mode: VatMode; source: VatSource };
   };
   /** 마스킹 후 원문에 남아 있으면 안 되는 문자열(가짜 개인정보) */
   maskedMustNotContain: string[];
@@ -287,5 +291,117 @@ TEL 070-5555-0199
     },
     maskedMustNotContain: [],
     maskedMustContain: ['666-77-88888'],
+  },
+  {
+    name: 'vat-user-selected-excluded',
+    description: '사용자가 VAT 별도를 선택: 합계금액이 없고 모델은 "포함"으로 잘못 답해도 선택이 우선',
+    ocrText: `견 적 서
+품명 수량 단가 금액
+마우스 3 10,000 30,000
+키보드 2 20,000 40,000`,
+    userVat: 'excluded',
+    modelRaw: {
+      vat_mode: 'included',
+      items: [
+        { item_name: '마우스', quantity: 3, unit_price: 10000, line_amount: 30000 },
+        { item_name: '키보드', quantity: 2, unit_price: 20000, line_amount: 40000 },
+      ],
+    },
+    expect: {
+      items: [
+        { name: '마우스', quantity: 3, unitPrice: 11000 },
+        { name: '키보드', quantity: 2, unitPrice: 22000 },
+      ],
+      total: 77000,
+      vat: { mode: 'excluded', source: 'user' },
+      warnings: { include: ['VAT 포함(+10%)으로 환산'] },
+    },
+    maskedMustNotContain: [],
+    maskedMustContain: ['마우스'],
+  },
+  {
+    name: 'vat-total-infers-excluded',
+    description: '자동: 모델은 "포함"으로 답했지만 합계금액(77,000)이 품목 합계(70,000)×1.1과 맞아 VAT 별도로 판별',
+    ocrText: `견 적 서
+합계금액 : 일금 칠만칠천 원정 (￦ 77,000)
+품명 수량 단가 금액
+마우스 3 10,000 30,000
+키보드 2 20,000 40,000`,
+    modelRaw: {
+      vat_mode: 'included',
+      items: [
+        { item_name: '마우스', quantity: 3, unit_price: 10000, line_amount: 30000 },
+        { item_name: '키보드', quantity: 2, unit_price: 20000, line_amount: 40000 },
+      ],
+    },
+    expect: {
+      items: [
+        { name: '마우스', quantity: 3, unitPrice: 11000 },
+        { name: '키보드', quantity: 2, unitPrice: 22000 },
+      ],
+      total: 77000,
+      statedTotal: 77000,
+      vat: { mode: 'excluded', source: 'total' },
+      warnings: { include: ['합계 기준을 따랐습니다'], exclude: ['다릅니다'] },
+    },
+    maskedMustNotContain: [],
+    maskedMustContain: ['77,000'],
+  },
+  {
+    name: 'vat-total-infers-included',
+    description: '자동: 모델은 "별도"로 답했지만 품목 합계가 합계금액(70,000)과 그대로 맞아 포함으로 판별',
+    ocrText: `견 적 서
+합계금액 : 일금 칠만 원정 (￦ 70,000) (부가세포함)
+품명 수량 단가 금액
+마우스 3 10,000 30,000
+키보드 2 20,000 40,000`,
+    modelRaw: {
+      vat_mode: 'excluded',
+      items: [
+        { item_name: '마우스', quantity: 3, unit_price: 10000, line_amount: 30000 },
+        { item_name: '키보드', quantity: 2, unit_price: 20000, line_amount: 40000 },
+      ],
+    },
+    expect: {
+      items: [
+        { name: '마우스', quantity: 3, unitPrice: 10000 },
+        { name: '키보드', quantity: 2, unitPrice: 20000 },
+      ],
+      total: 70000,
+      statedTotal: 70000,
+      vat: { mode: 'included', source: 'total' },
+      warnings: { include: ['합계 기준을 따랐습니다'], exclude: ['다릅니다', '환산'] },
+    },
+    maskedMustNotContain: [],
+    maskedMustContain: ['70,000'],
+  },
+  {
+    name: 'vat-user-choice-contradicts-total',
+    description: '사용자가 "포함"을 골랐지만 합계금액은 별도 기준에 맞음 → 선택을 따르되 확인하도록 안내',
+    ocrText: `견 적 서
+합계금액 : 일금 칠만칠천 원정 (￦ 77,000)
+품명 수량 단가 금액
+마우스 3 10,000 30,000
+키보드 2 20,000 40,000`,
+    userVat: 'included',
+    modelRaw: {
+      vat_mode: 'excluded',
+      items: [
+        { item_name: '마우스', quantity: 3, unit_price: 10000, line_amount: 30000 },
+        { item_name: '키보드', quantity: 2, unit_price: 20000, line_amount: 40000 },
+      ],
+    },
+    expect: {
+      items: [
+        { name: '마우스', quantity: 3, unitPrice: 10000 },
+        { name: '키보드', quantity: 2, unitPrice: 20000 },
+      ],
+      total: 70000,
+      statedTotal: 77000,
+      vat: { mode: 'included', source: 'user' },
+      warnings: { include: ["선택하신 'VAT 포함' 기준으로는", "'VAT 별도'로 계산하면 맞습니다"] },
+    },
+    maskedMustNotContain: [],
+    maskedMustContain: ['77,000'],
   },
 ];
