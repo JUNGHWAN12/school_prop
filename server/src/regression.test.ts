@@ -16,7 +16,7 @@ describe.each(CASES)('회귀: $name — $description', (c) => {
   });
 
   it('모델 응답을 정규화한 결과가 기대와 같다', () => {
-    const n = finalizeExtraction(structuredClone(c.modelRaw), masked);
+    const n = finalizeExtraction(structuredClone(c.modelRaw), masked, c.userVat ?? 'auto');
     expect(n.items).toHaveLength(c.expect.items.length);
     c.expect.items.forEach((e, i) => {
       expect(n.items[i].itemName).toContain(e.name);
@@ -25,6 +25,7 @@ describe.each(CASES)('회귀: $name — $description', (c) => {
     });
     expect(n.items.reduce((a, i) => a + i.quantity * i.unitPrice, 0)).toBe(c.expect.total);
     expect(n.statedTotal).toBe(c.expect.statedTotal);
+    if (c.expect.vat) expect({ mode: n.vatMode, source: n.vatSource }).toEqual(c.expect.vat);
     for (const w of c.expect.warnings?.include ?? []) expect(n.warnings.join('\n')).toContain(w);
     for (const w of c.expect.warnings?.exclude ?? []) expect(n.warnings.join('\n')).not.toContain(w);
   });

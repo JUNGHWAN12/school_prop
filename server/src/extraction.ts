@@ -1,5 +1,10 @@
 /** AI가 반환하는 원시 JSON → 화면용 QuoteExtraction 정규화 (VAT 포함 단가 환산, 검증 경고) */
 export type VatMode = 'included' | 'excluded' | 'exempt' | 'unknown';
+/** 사용자가 업로드 전에 고르는 단가 기준. 'auto'면 합계 대조 → 모델 판단 순으로 결정 */
+export type VatChoice = 'auto' | 'included' | 'excluded' | 'exempt';
+export type VatSource = 'user' | 'total' | 'model';
+export const parseVatChoice = (v: unknown): VatChoice =>
+  v === 'included' || v === 'excluded' || v === 'exempt' ? v : 'auto';
 export type TemplateType = 'TEMPLATE_PURCHASE' | 'TEMPLATE_EVENT' | 'TEMPLATE_MEAL';
 
 export interface RawItem {
@@ -27,6 +32,9 @@ export interface RawExtraction {
 
 export interface NormalizedItem { itemName: string; spec: string; unit: string; quantity: number; unitPrice: number }
 export interface Normalized {
+  /** 실제로 적용된 단가 기준과 그 근거(사용자 선택 / 합계 기반 판별 / AI 판단) */
+  vatMode?: VatMode;
+  vatSource?: VatSource;
   statedTotal?: number;
   suggestedTemplate: TemplateType;
   vendorName?: string;
@@ -65,7 +73,7 @@ export const EXTRACTION_SCHEMA = {
   required: ['items'],
 } as const;
 
-export const SYSTEM_PROMPT = `당신은 한국 학교 행정용 견적서 분석기입니다. 입력은 견적서 OCR 텍스트(개인정보는 이미 마스킹됨)입니다.
+const BASE_PROMPT = `당신은 한국 학교 행정용 견적서 분석기입니다. 입력은 견적서 OCR 텍스트(개인정보는 이미 마스킹됨)입니다.
 견적서 양식은 업체마다 다릅니다. 다음 JSON만 출력하세요(설명·코드블록 금지).
 - items: 견적 표의 모든 순번 행을 빠짐없이 포함하세요. 작업비·설치비·공임·배송비·운반비·인건비 같은 용역/비용 행도 수량과 금액이 있으면 품목입니다(단위가 비어 있어도 포함).
   제외하는 것은 합계/소계/공급가액 합계/세액 합계 같은 집계 행뿐입니다. 문서 순서 유지.
@@ -79,11 +87,23 @@ export const SYSTEM_PROMPT = `당신은 한국 학교 행정용 견적서 분석
 - vendor_name, business_no(사업자등록번호), quote_date(견적일자)는 보이는 대로. 없으면 생략.
 숫자는 읽은 값 그대로 쓰고 추측으로 만들지 마세요.`;
 
+const VAT_HINTS: Record<Exclude<VatChoice, 'auto'>, string> = {
+  included: '[사용자 지정] 이 견적서의 단가는 부가세 포함입니다. vat_mode는 "included"로 답하고, 단가를 그대로 읽으세요.',
+  excluded: '[사용자 지정] 이 견적서의 단가는 부가세 별도(공급가 기준)입니다. vat_mode는 "excluded"로 답하세요. unit_price·line_amount는 공급가 기준 값을 그대로 읽고, 품목별 세액 열이 있으면 line_tax에 넣으세요. total_amount는 부가세를 더한 최종 합계금액입니다.',
+  exempt: '[사용자 지정] 이 견적서는 면세(부가세 없음)입니다. vat_mode는 "exempt"로 답하고, 단가를 그대로 읽으세요.',
+};
+
+/** 시스템 프롬프트. 사용자가 단가 기준을 지정하면 한 줄 힌트만 덧붙인다(프롬프트를 모드별로 따로 두지 않음) */
+export function buildSystemPrompt(vat: VatChoice = 'auto'): string {
+  return vat === 'auto' ? BASE_PROMPT : `${BASE_PROMPT}\n${VAT_HINTS[vat]}`;
+}
+export const SYSTEM_PROMPT = buildSystemPrompt('auto');
+
 const TEMPLATES = new Set(['TEMPLATE_PURCHASE', 'TEMPLATE_EVENT', 'TEMPLATE_MEAL']);
 
-export function normalizeExtraction(raw: RawExtraction): Normalized {
+export function normalizeExtraction(raw: RawExtraction, modeOverride?: VatMode): Normalized {
   const warnings: string[] = [];
-  const mode: VatMode = raw.vat_mode ?? 'unknown';
+  const mode: VatMode = modeOverride ?? raw.vat_mode ?? 'unknown';
 
   const items: NormalizedItem[] = [];
   /** 견적서에 적힌 행별 청구 금액(공급가 열 등). 정가≠공급가인 견적서 처리에 사용 */
@@ -216,15 +236,69 @@ export function findStatedTotal(ocrText: string): number | undefined {
   return undefined;
 }
 
+const sumOf = (n: Normalized) => n.items.reduce((a, i) => a + i.quantity * i.unitPrice, 0);
+const withinTolerance = (sum: number, stated: number) => Math.abs(sum - stated) <= Math.max(10, Math.round(stated * 0.002));
+
 /**
- * 모델 응답을 최종 결과로 만든다. 모델이 합계금액을 빠뜨리면 마스킹된 OCR 원문에서 직접 찾아 보완한 뒤 정규화한다.
+ * 합계금액으로 단가 기준을 판별한다. 품목 합계가 합계금액과 맞는 쪽을 고른다.
+ * - 단가를 그대로 쓴 합계가 맞으면 포함(또는 면세), 단가×1.1(또는 세액 합산)이 맞으면 별도
+ * - 둘 다 맞거나 둘 다 안 맞으면 판별 불가(undefined)
+ */
+export function inferVatModeFromTotal(raw: RawExtraction, stated: number): VatMode | undefined {
+  const asWritten = withinTolerance(sumOf(normalizeExtraction(raw, 'included')), stated);
+  const excluded = withinTolerance(sumOf(normalizeExtraction(raw, 'excluded')), stated);
+  if (excluded && !asWritten) return 'excluded';
+  if (asWritten && !excluded) return raw.vat_mode === 'exempt' ? 'exempt' : 'included';
+  return undefined;
+}
+
+const VAT_LABEL: Record<VatMode, string> = { included: 'VAT 포함', excluded: 'VAT 별도', exempt: '면세', unknown: '불명' };
+const isExcl = (m: VatMode | undefined) => m === 'excluded';
+
+/**
+ * 모델 응답을 최종 결과로 만든다.
+ * 1) 모델이 합계금액을 빠뜨리면 마스킹된 OCR 원문에서 직접 찾아 보완
+ * 2) 단가 기준(VAT)은 사용자 선택 > 합계금액 기반 판별 > 모델 판단 순으로 결정
  * (서버 라우터와 테스트·평가 스크립트가 같은 경로를 쓰도록 분리)
  */
-export function finalizeExtraction(raw: RawExtraction, maskedText: string): Normalized {
+export function finalizeExtraction(raw: RawExtraction, maskedText: string, vat: VatChoice = 'auto'): Normalized {
   let r = raw;
   if (!(Number(raw.total_amount) > 0)) {
     const t = findStatedTotal(maskedText);
     if (t) r = { ...raw, total_amount: t };
   }
-  return normalizeExtraction(r);
+  const stated = Number(r.total_amount);
+  const hasStated = Number.isFinite(stated) && stated > 0;
+  const modelMode: VatMode = raw.vat_mode ?? 'unknown';
+
+  let mode: VatMode = modelMode;
+  let source: VatSource = 'model';
+  let extra: string | undefined;
+  if (vat !== 'auto') {
+    mode = vat;
+    source = 'user';
+  } else if (hasStated) {
+    const inferred = inferVatModeFromTotal(r, stated);
+    if (inferred) {
+      mode = inferred;
+      source = 'total';
+      if (modelMode !== 'unknown' && isExcl(modelMode) !== isExcl(inferred)) {
+        extra = `견적서 합계금액과 비교해 단가를 '${VAT_LABEL[inferred]}'로 판단했습니다(AI 판단 '${VAT_LABEL[modelMode]}'과 달라 합계 기준을 따랐습니다).`;
+      }
+    }
+  }
+
+  const n = normalizeExtraction(r, mode);
+  n.vatMode = mode;
+  n.vatSource = source;
+  if (extra) n.warnings.unshift(extra);
+
+  // 사용자가 고른 기준이 합계금액과 맞지 않고 반대 기준이 맞으면 알려 준다
+  if (source === 'user' && hasStated && !withinTolerance(sumOf(n), stated)) {
+    const alt: VatMode = isExcl(mode) ? 'included' : 'excluded';
+    if (withinTolerance(sumOf(normalizeExtraction(r, alt)), stated)) {
+      n.warnings.unshift(`선택하신 '${VAT_LABEL[mode]}' 기준으로는 견적서 합계금액과 맞지 않고 '${VAT_LABEL[alt]}'로 계산하면 맞습니다. 단가 기준 선택을 확인해 주세요.`);
+    }
+  }
+  return n;
 }

@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { num, type Env } from './env';
+import { parseVatChoice } from './extraction';
 import { ExtractionFailed, extractQuote } from './router';
 import { SlidingLimiter } from './limits';
 import { QuotaCounter, takeQuota } from './quota';
@@ -68,9 +69,10 @@ export function createApp(getEnv: (c: { env?: unknown }) => Env) {
     if (!q.ok) return c.json({ error: q.reason === 'IP' ? 'IP_DAILY_LIMIT' : 'DAILY_LIMIT', manual: true }, 429);
 
     try {
-      const r = await extractQuote(env, file);
+      const vat = parseVatChoice(form?.get('vat_mode'));
+      const r = await extractQuote(env, file, vat);
       // 본문·개인정보는 로그에 남기지 않고 지표만 기록
-      console.log(JSON.stringify({ evt: 'extract', provider: r.provider, fallback: r.fallbackUsed, ms: r.timingsMs, masked: r.maskedCounts }));
+      console.log(JSON.stringify({ evt: 'extract', provider: r.provider, fallback: r.fallbackUsed, vat: r.vatMode, vatSource: r.vatSource, ms: r.timingsMs, masked: r.maskedCounts }));
       return c.json(r);
     } catch (e) {
       const stage = e instanceof ExtractionFailed ? e.stage : 'llm';

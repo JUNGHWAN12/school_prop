@@ -1,12 +1,13 @@
 import { useRef, useState } from 'react';
 import { Loader2, UploadCloud } from 'lucide-react';
+import { VAT_OPTIONS } from '../lib/vat';
 import { useStore } from '../store/useStore';
 
 const MAX = 10 * 1024 * 1024;
 const OK = ['application/pdf', 'image/jpeg', 'image/png'];
 
 export function UploadPanel() {
-  const { analyze, status, file, previewUrl } = useStore();
+  const { analyze, status, file, previewUrl, vatChoice, setVatChoice } = useStore();
   const input = useRef<HTMLInputElement>(null);
   const [drag, setDrag] = useState(false);
   const [localErr, setLocalErr] = useState('');
@@ -21,6 +22,18 @@ export function UploadPanel() {
 
   return (
     <section className="space-y-3">
+      <fieldset className="rounded-lg bg-white p-3 shadow-sm">
+        <legend className="px-1 text-xs font-medium text-slate-600">견적서 단가 기준</legend>
+        <div role="radiogroup" aria-label="견적서 단가 기준" className="flex flex-wrap gap-2">
+          {VAT_OPTIONS.map((o) => (
+            <label key={o.value} className={`cursor-pointer rounded-full border px-3 py-1 text-sm ${vatChoice === o.value ? 'border-blue-600 bg-blue-600 text-white' : 'bg-white'}`}>
+              <input type="radio" name="vat" className="sr-only" checked={vatChoice === o.value} onChange={() => setVatChoice(o.value)} />
+              {o.label}
+            </label>
+          ))}
+        </div>
+        <p className="mt-2 text-xs text-slate-500">{VAT_OPTIONS.find((o) => o.value === vatChoice)?.help}. 업로드 전에 선택하세요.</p>
+      </fieldset>
       <div
         onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
         onDragLeave={() => setDrag(false)}

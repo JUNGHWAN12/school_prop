@@ -67,7 +67,7 @@ async function runCases() {
     const problems: string[] = [];
     try {
       const { text: masked } = maskPersonalInfo(c.ocrText);
-      const n = finalizeExtraction(await llm(env, masked), masked);
+      const n = finalizeExtraction(await llm(env, masked, c.userVat ?? 'auto'), masked, c.userVat ?? 'auto');
       if (n.items.length !== c.expect.items.length) problems.push(`품목 수 ${n.items.length} (기대 ${c.expect.items.length})`);
       c.expect.items.forEach((e, i) => {
         const g = n.items[i];
@@ -78,6 +78,7 @@ async function runCases() {
       });
       const sum = n.items.reduce((a, i) => a + i.quantity * i.unitPrice, 0);
       if (sum !== c.expect.total) problems.push(`합계 ${won(sum)} (기대 ${won(c.expect.total)})`);
+      if (c.expect.vat && (n.vatMode !== c.expect.vat.mode || n.vatSource !== c.expect.vat.source)) problems.push(`단가 기준 ${n.vatMode}/${n.vatSource} (기대 ${c.expect.vat.mode}/${c.expect.vat.source})`);
       for (const w of c.expect.warnings?.include ?? []) if (!n.warnings.join('\n').includes(w)) problems.push(`경고에 '${w}' 없음`);
       for (const w of c.expect.warnings?.exclude ?? []) if (n.warnings.join('\n').includes(w)) problems.push(`경고에 '${w}'가 불필요하게 포함`);
     } catch (e) {

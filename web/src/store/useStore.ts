@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { ApiError, extract } from '../lib/api';
 import { defaultParams, type TemplateParams } from '../lib/templates';
+import { loadVatChoice, saveVatChoice, type VatChoice, type VatSource } from '../lib/vat';
 import type { Item, TemplateType } from '../types';
 
 let seq = 0;
@@ -13,12 +14,14 @@ interface State {
   error: string | null;
   errorDetail: string | null;
   warnings: string[];
-  meta: { provider?: string; fallbackUsed?: boolean; vendorName?: string; statedTotal?: number } | null;
+  meta: { provider?: string; fallbackUsed?: boolean; vendorName?: string; statedTotal?: number; vatMode?: string; vatSource?: VatSource } | null;
   items: Item[];
   template: TemplateType;
   params: TemplateParams;
   bodyOverride: string | null;
 
+  vatChoice: VatChoice;
+  setVatChoice(v: VatChoice): void;
   analyze(file: File): Promise<void>;
   setTemplate(t: TemplateType): void;
   setParams(p: Partial<TemplateParams>): void;
@@ -40,20 +43,25 @@ export const useStore = create<State>((set, get) => ({
   template: 'TEMPLATE_PURCHASE',
   params: defaultParams(),
   bodyOverride: null,
+  vatChoice: loadVatChoice(),
 
+  setVatChoice(vatChoice) {
+    saveVatChoice(vatChoice);
+    set({ vatChoice });
+  },
   async analyze(file) {
     const prev = get().previewUrl;
     if (prev) URL.revokeObjectURL(prev);
     set({ file, previewUrl: URL.createObjectURL(file), status: 'loading', error: null, errorDetail: null, warnings: [], meta: null });
     try {
-      const r = await extract(file);
+      const r = await extract(file, get().vatChoice);
       set({
         status: 'done',
         items: r.items.length ? r.items.map((i) => newItem(i)) : [newItem()],
         template: r.suggestedTemplate,
         bodyOverride: null,
         warnings: r.warnings ?? [],
-        meta: { provider: r.provider, fallbackUsed: r.fallbackUsed, vendorName: r.vendorName, statedTotal: r.statedTotal },
+        meta: { provider: r.provider, fallbackUsed: r.fallbackUsed, vendorName: r.vendorName, statedTotal: r.statedTotal, vatMode: r.vatMode, vatSource: r.vatSource },
       });
     } catch (e) {
       set({ status: 'error', error: e instanceof Error ? e.message : '알 수 없는 오류', errorDetail: e instanceof ApiError ? e.detail || null : null });

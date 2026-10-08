@@ -17,6 +17,9 @@ export interface QuoteExtraction {
   quoteDate?: string;
   /** 견적서에 적힌 최종 합계금액(VAT 포함) */
   statedTotal?: number;
+  /** 적용된 단가 기준과 그 근거 */
+  vatMode?: 'included' | 'excluded' | 'exempt' | 'unknown';
+  vatSource?: 'user' | 'total' | 'model';
   items: Omit<Item, 'id'>[];
   provider?: string;
   fallbackUsed?: boolean;
